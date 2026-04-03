@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import json
 import os
+from datetime import datetime
 
 from detector import detect_threats, build_attack_timeline, load_logs
 from mitre_map import get_all_mappings, get_mitre_info
@@ -26,6 +27,42 @@ def get_logs():
         _LOGS = load_logs()
     return _LOGS
 
+def append_auth_log(log_entry):
+    """Append authentication log to the real_json/auth_logs.json file and update cache"""
+    global _LOGS
+    logs_path = os.path.join(os.path.dirname(__file__), "real_json", "auth_logs.json")
+    
+    try:
+        # Load existing auth logs
+        with open(logs_path, 'r') as f:
+            logs = json.load(f)
+        
+        # Generate new ID
+        new_id = max([log.get('id', 0) for log in logs], default=0) + 1
+        log_entry['id'] = new_id
+        
+        # Add timestamp in required format
+        if 'timestamp' in log_entry:
+            dt = datetime.fromisoformat(log_entry['timestamp'].replace('Z', '+00:00'))
+            log_entry['timestamp'] = dt.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Append to logs
+        logs.append(log_entry)
+        
+        # Save back to file
+        with open(logs_path, 'w') as f:
+            json.dump(logs, f, indent=2)
+        
+        # Update cache
+        _LOGS.append(log_entry)
+        
+        print(f"[app] Auth log stored: ID {new_id}, User: {log_entry.get('user')}, Status: {log_entry.get('status')}")
+        return True
+    except Exception as e:
+        print(f"[app] ERROR: Could not append auth log: {e}")
+        return False
+    return True
+
 
 # ── Page Route ────────────────────────────────────────────────────────────────
 
@@ -37,6 +74,59 @@ def index():
 @app.route("/dashboard")
 def dashboard():
     return render_template("mitre_dashboard.html")
+
+
+@app.route("/login")
+def login():
+    return render_template("frontend/login.html")
+
+
+# ── POST /api/auth/log ───────────────────────────────────────────────────────────
+# Receive and store authentication logs from login.html
+@app.route("/api/auth/log", methods=["POST"])
+def api_auth_log():
+    body = request.get_json(force=True)
+    
+    if not body:
+        return jsonify({"error": "No log data provided"}), 400
+    
+    # Validate required fields
+    required_fields = ["timestamp", "source", "user", "ip", "status", "message"]
+    missing_fields = [field for field in required_fields if field not in body]
+    
+    if missing_fields:
+        return jsonify({"error": f"Missing required fields: {missing_fields}"}), 400
+    
+    # Append to logs
+    success = append_auth_log(body)
+    
+    if success:
+        return jsonify({
+            "status": "success", 
+            "message": "Authentication log recorded",
+            "log_id": body.get('id')
+        }), 200
+    else:
+        return jsonify({"error": "Failed to store authentication log"}), 500
+
+
+# ── GET /api/auth/logs ───────────────────────────────────────────────────────────
+# Returns only web authentication logs from real_json/auth_logs.json
+@app.route("/api/auth/logs", methods=["GET"])
+def api_auth_logs():
+    auth_logs_path = os.path.join(os.path.dirname(__file__), "real_json", "auth_logs.json")
+    
+    try:
+        with open(auth_logs_path, 'r') as f:
+            auth_logs = json.load(f)
+        
+        # Sort by timestamp descending (newest first)
+        auth_logs.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        
+        return jsonify({"count": len(auth_logs), "logs": auth_logs})
+    except Exception as e:
+        print(f"[app] ERROR: Could not load auth logs: {e}")
+        return jsonify({"count": 0, "logs": []})
 
 
 # ── GET /api/logs ─────────────────────────────────────────────────────────────

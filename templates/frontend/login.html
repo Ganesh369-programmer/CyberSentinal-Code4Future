@@ -492,7 +492,67 @@
         ];
         return validCreds.find(cred => cred.user === username && cred.pass === password);
     }
-    
+
+    // Function to log authentication attempts to server
+    async function logAuthenticationAttempt(username, success, ip, userAgent, errorMessage = null) {
+        try {
+            console.log('Attempting to log authentication attempt:', { username, success, ip, userAgent, errorMessage });
+            
+            const logData = {
+                timestamp: new Date().toISOString(),
+                source: "web_authentication",
+                user: username,
+                ip: ip,
+                user_agent: userAgent,
+                status: success ? "success" : "failure",
+                event_id: success ? 4624 : 4625,
+                dest_ip: window.location.hostname,
+                port: window.location.port || 443,
+                message: success ? 
+                    `Web authentication successful for user ${username}` : 
+                    `Web authentication failed for user ${username}${errorMessage ? ': ' + errorMessage : ''}`,
+                session_id: sessionStorage.getItem('sessionId') || null,
+                login_method: "web_form"
+            };
+
+            console.log('Sending log data:', logData);
+            console.log('Sending to:', '/api/auth/log');
+
+            const response = await fetch('/api/auth/log', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(logData)
+            });
+
+            console.log('Response status:', response.status);
+            console.log('Response ok:', response.ok);
+
+            if (!response.ok) {
+                console.warn('Failed to log authentication attempt:', response.statusText);
+                const errorText = await response.text();
+                console.warn('Error response:', errorText);
+            } else {
+                const result = await response.json();
+                console.log('Log successfully recorded:', result);
+            }
+        } catch (error) {
+            console.error('Error logging authentication attempt:', error);
+        }
+    }
+
+    // Get client IP (fallback to client-side detection)
+    async function getClientIP() {
+        try {
+            const response = await fetch('https://api.ipify.org?format=json');
+            const data = await response.json();
+            return data.ip;
+        } catch (error) {
+            return 'unknown';
+        }
+    }
+
     // simulate logging attempt with glow animation
     const form = document.getElementById('advancedLoginForm');
     
@@ -509,10 +569,15 @@
         loginBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> VERIFYING CREDENTIALS...';
         
         // Artificial delay for dramatic effect (makes it feel like secure handshake)
-        setTimeout(() => {
+        setTimeout(async () => {
             const userAuth = authenticateUser(username, password);
+            const clientIP = await getClientIP();
+            const userAgent = navigator.userAgent;
             
             if (userAuth) {
+                // Log successful authentication
+                await logAuthenticationAttempt(username, true, clientIP, userAgent);
+                
                 // Grant access success
                 showToast('success', `✓ ${userAuth.role}`, `Authentication successful. Redirecting to CyberSentinel Dashboard...`);
                 // Play subtle style: add a glow effect on card
@@ -522,15 +587,16 @@
                 // Store session simulation
                 sessionStorage.setItem('cyberUser', username);
                 sessionStorage.setItem('cyberRole', userAuth.role);
+                sessionStorage.setItem('sessionId', Math.random().toString(36).substr(2, 9));
                 
-                // Redirect to dashboard (demo index.html same as original but now we create a dummy dashboard simulation? Actually we redirect to "dashboard.html" but we don't have, but we will create synthetic in-memory redirect? Original used index.html, but to maintain consistency, we'll create a fake redirection with alert and then go to index.html. Since we have no dashboard file, but we will simulate a dashboard redirect after alert.
+                // Redirect to dashboard
                 setTimeout(() => {
-                    // If we want to show something nice, we can redirect to the same "index.html" that the user's original code expects, but we can also create a demo alert and location.
-                    // We'll preserve the original behavior: window.location.href = "index.html";
-                    // However ensure that we do not break if index.html missing. But we follow your initial spec.
-                    window.location.href = "index.html";
+                    window.location.href = "/dashboard";
                 }, 1400);
             } else {
+                // Log failed authentication
+                await logAuthenticationAttempt(username, false, clientIP, userAgent, "Invalid credentials");
+                
                 // Failed attempt: advanced visual denial + log simulation
                 showToast('error', '⛔ SECURITY ALERT', `Invalid credentials for user "${username}". Unauthorized access logged.`);
                 // Shake effect on card

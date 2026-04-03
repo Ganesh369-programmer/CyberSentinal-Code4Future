@@ -1,0 +1,41 @@
+[
+  {
+    "timestamp": "2025-04-03 18:20:00",
+    "source": "web_authentication",
+    "user": "test_user",
+    "ip": "127.0.0.1",
+    "status": "failure",
+    "message": "Test login from new system",
+    "id": 1
+  },
+  {
+    "timestamp": "2026-04-03 13:18:16",
+    "source": "web_authentication",
+    "user": "hbh",
+    "ip": "43.241.131.38",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0",
+    "status": "failure",
+    "event_id": 4625,
+    "dest_ip": "127.0.0.1",
+    "port": "5000",
+    "message": "Web authentication failed for user hbh: Invalid credentials",
+    "session_id": null,
+    "login_method": "web_form",
+    "id": 2
+  },
+  {
+    "timestamp": "2026-04-03 13:18:37",
+    "source": "web_authentication",
+    "user": "admin",
+    "ip": "43.241.131.38",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0",
+    "status": "success",
+    "event_id": 4624,
+    "dest_ip": "127.0.0.1",
+    "port": "5000",
+    "message": "Web authentication successful for user admin",
+    "session_id": null,
+    "login_method": "web_form",
+    "id": 3
+  }
+]

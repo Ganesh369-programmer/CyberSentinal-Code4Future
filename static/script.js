@@ -13,6 +13,7 @@ let logFilter   = "all";
 let logSearch   = "";
 let suspiciousIPs = new Set();
 let pollTimer   = null;
+let logTimer    = null;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.addEventListener("DOMContentLoaded", async () => {
@@ -20,6 +21,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   startClock();
   await bootSequence();
   pollTimer = setInterval(refreshAlerts, 15000);   // refresh alerts every 15s
+  logTimer = setInterval(loadLogs, 5000);      // refresh logs every 5s
 });
 
 async function bootSequence() {
@@ -41,8 +43,7 @@ async function bootSequence() {
 
   appendBotMessage(
     `✅ <strong>Backend connected.</strong><br><br>` +
-    `Loaded <span style="color:var(--blue)">${allLogs.length} log events</span> · ` +
-    `<span style="color:var(--red)">${allAlerts.length} threats detected</span>.<br><br>` +
+    `Loaded <span style="color:var(--blue)">${allLogs.length} authentication events</span> from login.html.<br><br>` +
     `Type a natural language query or click a chip below.`,
     "llama3"
   );
@@ -84,11 +85,11 @@ async function loadAlerts() {
   animCount("hs-high",     sc.HIGH     || 0);
   animCount("hs-events",   allLogs.length || 0);
 
-  // Metric cards (top of panel 2)
-  el("mc-threats").textContent = allAlerts.length;
-  el("mc-ips").textContent     = suspiciousIPs.size;
-  animBar("mc-threats-bar", Math.min(100, allAlerts.length * 15));
-  animBar("mc-ips-bar",     Math.min(100, suspiciousIPs.size * 20));
+  // Metric cards (top of panel 2) - Focus on authentication logs
+  el("mc-threats").textContent = allLogs.length;  // Use auth logs instead of alerts
+  el("mc-ips").textContent     = [...new Set(allLogs.map(l => l.ip))].length;  // IPs from auth logs
+  animBar("mc-threats-bar", Math.min(100, allLogs.length * 15));
+  animBar("mc-ips-bar",     Math.min(100, [...new Set(allLogs.map(l => l.ip))].length * 20));
 
   renderAlertFeed();
   populateIPSelect();
@@ -106,7 +107,7 @@ async function refreshAlerts() {
 
 // ── Load & render logs ────────────────────────────────────────────────────────
 async function loadLogs() {
-  const data = await fetchJSON("/api/logs");
+  const data = await fetchJSON("/api/auth/logs");
   if (!data) return;
 
   allLogs = data.logs || [];
