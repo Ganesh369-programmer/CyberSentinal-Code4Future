@@ -14,8 +14,9 @@ from mitre_d3fend_map import get_all_d3fend_mappings, get_d3fend_info
 from mitre_engage_map import get_all_engage_mappings, get_engage_info
 from mitre_framework_analyzer import MITREFrameworkAnalyzer
 from soar import get_response_playbook, get_all_playbook_names
+from Brute_force.brute_force_attack import brute_force_instance
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
 CORS(app)   # Allow frontend on different port during dev
 
 # ── Cached log data (loaded once at startup) ──────────────────────────────────
@@ -79,6 +80,11 @@ def dashboard():
 @app.route("/login")
 def login():
     return render_template("frontend/login.html")
+
+
+@app.route("/brute-force")
+def brute_force_dashboard():
+    return render_template("Brute_force/brute_force_dashboard.html")
 
 
 # ── POST /api/auth/log ───────────────────────────────────────────────────────────
@@ -381,6 +387,57 @@ def api_timeline(ip):
     logs     = get_logs()
     timeline = build_attack_timeline(ip, logs)
     return jsonify(timeline)
+
+
+# ── Brute Force API Endpoints ─────────────────────────────────────────────────────
+
+@app.route("/api/brute-force/start", methods=["POST"])
+def api_brute_force_start():
+    """Start a brute force attack"""
+    body = request.get_json(force=True)
+    
+    if not body:
+        return jsonify({"success": False, "message": "No configuration provided"}), 400
+    
+    # Validate required fields
+    required_fields = ["target_ip", "target_username", "password_method", "max_attempts"]
+    missing_fields = [field for field in required_fields if field not in body]
+    
+    if missing_fields:
+        return jsonify({
+            "success": False, 
+            "message": f"Missing required fields: {missing_fields}"
+        }), 400
+    
+    # Start the attack
+    success, message = brute_force_instance.start_attack(
+        target_ip=body["target_ip"],
+        target_username=body["target_username"],
+        password_method=body["password_method"],
+        max_attempts=body["max_attempts"]
+    )
+    
+    return jsonify({
+        "success": success,
+        "message": message
+    })
+
+
+@app.route("/api/brute-force/stop", methods=["POST"])
+def api_brute_force_stop():
+    """Stop the current brute force attack"""
+    success, message = brute_force_instance.stop_attack()
+    
+    return jsonify({
+        "success": success,
+        "message": message
+    })
+
+
+@app.route("/api/brute-force/status", methods=["GET"])
+def api_brute_force_status():
+    """Get the current status of the brute force attack"""
+    return jsonify(brute_force_instance.get_stats())
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

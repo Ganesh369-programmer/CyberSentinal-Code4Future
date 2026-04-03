@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brute Force Attack Simulator</title>
+    <link rel="stylesheet" href="/static/Brute_force/brute_force_styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-shield-alt"></i> Brute Force Attack Simulator</h1>
+            <p class="subtitle">CyberSentinel SOC Co-Pilot - Attack Simulation Module</p>
+        </header>
+
+        <main class="main-content">
+            <!-- Attack Configuration Panel -->
+            <section class="config-panel">
+                <h2><i class="fas fa-cog"></i> Attack Configuration</h2>
+                
+                <div class="config-grid">
+                    <div class="form-group">
+                        <label for="target-ip">Target IP Address:</label>
+                        <input type="text" id="target-ip" placeholder="192.168.1.100" value="192.168.1.100">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="target-username">Target Username:</label>
+                        <input type="text" id="target-username" placeholder="admin" value="admin">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password-method">Password Method:</label>
+                        <select id="password-method">
+                            <option value="common">Common Passwords</option>
+                            <option value="numeric">Numeric Only</option>
+                            <option value="alphabet">Alphabet Combinations</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="max-attempts">Max Attempts:</label>
+                        <input type="number" id="max-attempts" value="50" min="1" max="1000">
+                    </div>
+                </div>
+                
+                <div class="control-buttons">
+                    <button id="start-btn" class="btn btn-start">
+                        <i class="fas fa-play"></i> Start Attack
+                    </button>
+                    <button id="stop-btn" class="btn btn-stop" disabled>
+                        <i class="fas fa-stop"></i> Stop Attack
+                    </button>
+                    <button id="reset-btn" class="btn btn-reset">
+                        <i class="fas fa-redo"></i> Reset
+                    </button>
+                </div>
+            </section>
+
+            <!-- Attack Status Panel -->
+            <section class="status-panel">
+                <h2><i class="fas fa-chart-line"></i> Attack Status</h2>
+                
+                <div class="status-grid">
+                    <div class="status-card">
+                        <div class="status-label">Status</div>
+                        <div id="attack-status" class="status-value stopped">Stopped</div>
+                    </div>
+                    
+                    <div class="status-card">
+                        <div class="status-label">Total Attempts</div>
+                        <div id="total-attempts" class="status-value">0</div>
+                    </div>
+                    
+                    <div class="status-card">
+                        <div class="status-label">Successful</div>
+                        <div id="successful-attempts" class="status-value success">0</div>
+                    </div>
+                    
+                    <div class="status-card">
+                        <div class="status-label">Failed</div>
+                        <div id="failed-attempts" class="status-value danger">0</div>
+                    </div>
+                    
+                    <div class="status-card">
+                        <div class="status-label">Elapsed Time</div>
+                        <div id="elapsed-time" class="status-value">00:00:00</div>
+                    </div>
+                    
+                    <div class="status-card">
+                        <div class="status-label">Current Password</div>
+                        <div id="current-password" class="status-value">-</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Progress Section -->
+            <section class="progress-section">
+                <h2><i class="fas fa-tasks"></i> Attack Progress</h2>
+                
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                    <div id="progress-text" class="progress-text">0 / 0 attempts</div>
+                </div>
+                
+                <div class="passwords-tried">
+                    <h3>Recent Passwords Tried:</h3>
+                    <div id="passwords-list" class="passwords-list">
+                        <div class="no-passwords">No passwords tried yet</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Attack Log -->
+            <section class="log-section">
+                <h2><i class="fas fa-list"></i> Attack Log</h2>
+                
+                <div class="log-controls">
+                    <button id="clear-log" class="btn btn-small">
+                        <i class="fas fa-trash"></i> Clear Log
+                    </button>
+                    <button id="export-log" class="btn btn-small">
+                        <i class="fas fa-download"></i> Export Log
+                    </button>
+                </div>
+                
+                <div id="attack-log" class="log-container">
+                    <div class="log-entry info">
+                        <span class="timestamp">[System]</span>
+                        <span class="message">Brute Force Attack Simulator initialized</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/Brute_force/brute_force_dashboard.js"></script>
+</body>
+</html>
