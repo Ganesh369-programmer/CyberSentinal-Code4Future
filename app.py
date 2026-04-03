@@ -8,6 +8,10 @@ import os
 
 from detector import detect_threats, build_attack_timeline, load_logs
 from mitre_map import get_all_mappings, get_mitre_info
+from mitre_car_map import get_all_car_mappings, get_car_info
+from mitre_d3fend_map import get_all_d3fend_mappings, get_d3fend_info
+from mitre_engage_map import get_all_engage_mappings, get_engage_info
+from mitre_framework_analyzer import MITREFrameworkAnalyzer
 from soar import get_response_playbook, get_all_playbook_names
 
 app = Flask(__name__)
@@ -28,6 +32,11 @@ def get_logs():
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/dashboard")
+def dashboard():
+    return render_template("mitre_dashboard.html")
 
 
 # ── GET /api/logs ─────────────────────────────────────────────────────────────
@@ -220,6 +229,54 @@ def api_memory():
 @app.route("/api/mitre", methods=["GET"])
 def api_mitre():
     return jsonify({"mappings": get_all_mappings()})
+
+
+# ── GET /api/mitre/car ─────────────────────────────────────────────────────────
+@app.route("/api/mitre/car", methods=["GET"])
+def api_mitre_car():
+    return jsonify({"mappings": get_all_car_mappings()})
+
+
+# ── GET /api/mitre/d3fend ───────────────────────────────────────────────────────
+@app.route("/api/mitre/d3fend", methods=["GET"])
+def api_mitre_d3fend():
+    return jsonify({"mappings": get_all_d3fend_mappings()})
+
+
+# ── GET /api/mitre/engage ───────────────────────────────────────────────────────
+@app.route("/api/mitre/engage", methods=["GET"])
+def api_mitre_engage():
+    return jsonify({"mappings": get_all_engage_mappings()})
+
+
+# ── GET /api/mitre/analyze/<threat_type> ───────────────────────────────────────────
+@app.route("/api/mitre/analyze/<threat_type>", methods=["GET"])
+def api_mitre_analyze(threat_type):
+    analyzer = MITREFrameworkAnalyzer()
+    analysis = analyzer.analyze_threat_across_frameworks(threat_type)
+    return jsonify(analysis)
+
+
+# ── POST /api/mitre/compare ───────────────────────────────────────────────────────
+@app.route("/api/mitre/compare", methods=["POST"])
+def api_mitre_compare():
+    body = request.get_json(force=True)
+    threat_types = body.get("threat_types", [])
+    
+    if not threat_types:
+        return jsonify({"error": "threat_types array is required"}), 400
+    
+    analyzer = MITREFrameworkAnalyzer()
+    comparison = analyzer.compare_threats_across_frameworks(threat_types)
+    return jsonify(comparison)
+
+
+# ── GET /api/mitre/summary ───────────────────────────────────────────────────────
+@app.route("/api/mitre/summary", methods=["GET"])
+def api_mitre_summary():
+    analyzer = MITREFrameworkAnalyzer()
+    summary = analyzer.get_framework_summary()
+    return jsonify(summary)
 
 
 # ── GET /api/playbooks ────────────────────────────────────────────────────────
