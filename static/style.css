@@ -47,6 +47,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg-deep);color:var(--t1);
 .logo-main{font-family:var(--logo);font-size:15px;font-weight:700;letter-spacing:3px;color:var(--t1)}
 .logo-accent{color:var(--green)}
 .logo-sub{font-family:var(--mono);font-size:8px;color:var(--t2);letter-spacing:2px}
+.header-nav{display:flex;gap:1px;background:rgba(0,0,0,0.3);border-radius:20px;padding:2px;position:absolute;bottom:-24px;left:50%;transform:translateX(-50%);z-index:15}
+.nav-link{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:16px;color:var(--t2);text-decoration:none;font-size:11px;font-weight:500;transition:all 0.3s ease;background:transparent;border:1px solid transparent}
+.nav-link:hover{background:rgba(0,255,136,0.08);color:var(--green);border-color:rgba(0,255,136,0.2)}
+.nav-link.active{background:rgba(0,255,136,0.15);color:var(--green);border-color:rgba(0,255,136,0.3);box-shadow:0 0 12px rgba(0,255,136,0.2)}
 
 .header-center{display:flex;align-items:center}
 .status-badge{display:flex;align-items:center;gap:7px;padding:4px 14px;border-radius:20px;font-family:var(--mono);font-size:9px;letter-spacing:2px;border:1px solid rgba(0,255,136,0.25);background:rgba(0,255,136,0.04);color:var(--green)}
@@ -116,6 +120,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg-deep);color:var(--t1);
 .alert-ip{font-family:var(--mono);font-size:11px;color:var(--blue);margin-bottom:4px}
 .alert-meta{font-family:var(--mono);font-size:9px;color:var(--t3);display:flex;gap:10px}
 .mitre-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.25);border-radius:var(--r);font-family:var(--mono);font-size:9px;color:var(--purple);margin-top:6px}
+.car-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:rgba(255,159,67,0.1);border:1px solid rgba(255,159,67,0.25);border-radius:var(--r);font-family:var(--mono);font-size:9px;color:var(--orange);margin-top:6px}
 .alert-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .action-btn{padding:4px 10px;border:1px solid var(--border);background:none;color:var(--t2);font-family:var(--mono);font-size:9px;border-radius:var(--r);cursor:pointer;transition:all .2s;letter-spacing:.5px}
 .action-btn:hover{border-color:var(--blue);color:var(--blue)}
@@ -290,4 +295,150 @@ html,body{height:100%;overflow:hidden;background:var(--bg-deep);color:var(--t1);
   .logo-sub{display:none}
   .header-clock{display:none}
   .main-layout{grid-template-rows:40vh 50vh 60vh}
+}
+
+/* ── MITRE SUMMARY ── */
+.mitre-summary{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  margin-bottom:12px;
+  overflow:hidden;
+}
+.mitre-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 14px;
+  background:rgba(0,180,255,0.04);
+  border-bottom:1px solid var(--border);
+}
+.mitre-title{
+  font-family:var(--logo);
+  font-size:9px;
+  letter-spacing:1.5px;
+  color:var(--blue);
+  font-weight:600;
+}
+.refresh-btn{
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--t2);
+  padding:4px 8px;
+  border-radius:4px;
+  font-size:10px;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.refresh-btn:hover{
+  background:rgba(0,180,255,0.1);
+  color:var(--blue);
+  border-color:var(--blue);
+}
+.mitre-content{
+  padding:12px 14px;
+}
+.mitre-stats{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px;
+  margin-bottom:12px;
+}
+.mitre-stat{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:8px 6px;
+  background:rgba(0,255,136,0.03);
+  border:1px solid rgba(0,255,136,0.15);
+  border-radius:4px;
+}
+.mitre-stat-label{
+  font-family:var(--mono);
+  font-size:7px;
+  color:var(--t2);
+  letter-spacing:0.5px;
+  margin-bottom:2px;
+}
+.mitre-stat-val{
+  font-family:var(--logo);
+  font-size:14px;
+  color:var(--green);
+  font-weight:700;
+}
+.mitre-section{
+  margin-bottom:12px;
+}
+.mitre-section-title{
+  font-family:var(--mono);
+  font-size:8px;
+  color:var(--t1);
+  margin-bottom:6px;
+  letter-spacing:0.5px;
+}
+.mitre-items{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.mitre-item{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 8px;
+  background:var(--bg-row);
+  border-radius:4px;
+  border-left:3px solid transparent;
+}
+.mitre-item.attack{
+  border-left-color:var(--red);
+}
+.mitre-item.car{
+  border-left-color:var(--orange);
+}
+.mitre-id{
+  font-family:var(--logo);
+  font-size:8px;
+  color:var(--blue);
+  background:rgba(0,180,255,0.1);
+  padding:2px 4px;
+  border-radius:3px;
+  min-width:35px;
+  text-align:center;
+}
+.mitre-name{
+  flex:1;
+  font-family:var(--mono);
+  font-size:8px;
+  color:var(--t1);
+  line-height:1.3;
+}
+.mitre-tactic{
+  font-family:var(--mono);
+  font-size:7px;
+  color:var(--t2);
+  background:rgba(106,143,170,0.1);
+  padding:2px 4px;
+  border-radius:3px;
+}
+.mitre-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:8px 0;
+  margin-top:8px;
+  border-top:1px solid var(--border);
+  font-family:var(--mono);
+  font-size:8px;
+  color:var(--t2);
+}
+.mitre-link{
+  color:var(--blue);
+  text-decoration:none;
+  font-family:var(--mono);
+  font-size:8px;
+  transition:color 0.2s;
+}
+.mitre-link:hover{
+  color:var(--green);
 }

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>MITRE Framework Mapping - CyberSentinel SOC Co-Pilot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <link rel="stylesheet" href="/static/style.css"/>
+    <link rel="stylesheet" href="/static/mitre_mapping_styles.css"/>
+</head>
+<body>
+
+<canvas id="matrixCanvas"></canvas>
+<div class="scanlines"></div>
+
+<!-- ═══ HEADER ═══ -->
+<header class="site-header">
+  <div class="header-left">
+    <div class="logo-icon">
+      <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
+        <polygon points="16,2 30,10 30,22 16,30 2,22 2,10" stroke="#00ff88" stroke-width="1.5" fill="none"/>
+        <polygon points="16,8 24,13 24,19 16,24 8,19 8,13" stroke="#00ff88" stroke-width="1" fill="rgba(0,255,136,0.05)"/>
+        <circle cx="16" cy="16" r="3" fill="#00ff88"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <span class="logo-main">MITRE <span class="logo-accent">MAPPING</span></span>
+      <span class="logo-sub">FRAMEWORK ANALYSIS · THREAT INTELLIGENCE</span>
+    </div>
+  </div>
+  <div class="header-center">
+    <div class="status-badge" id="systemStatus">
+      <span class="pulse-dot"></span>
+      <span id="statusText">CONNECTING…</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="header-stats">
+      <div class="hstat critical-stat">
+        <span class="hstat-val" id="mappedTechniques">—</span>
+        <span class="hstat-label">TECHNIQUES</span>
+      </div>
+      <div class="hstat">
+        <span class="hstat-val" id="mappedIPs">—</span>
+        <span class="hstat-label">IPs</span>
+      </div>
+      <div class="hstat">
+        <span class="hstat-val" id="totalLogs">—</span>
+        <span class="hstat-label">LOGS</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ MAIN CONTENT ═══ -->
+<main class="mitre-main">
+  
+  <!-- Left Sidebar - IP and TID Mappings -->
+  <aside class="mitre-sidebar">
+    <div class="sidebar-header">
+      <h2><i class="fas fa-network-wired"></i> IP & TECHNIQUE MAPPINGS</h2>
+      <div class="sidebar-controls">
+        <button id="refreshMappings" class="btn-cyber">
+          <i class="fas fa-sync"></i> Refresh
+        </button>
+        <button id="exportMappings" class="btn-cyber">
+          <i class="fas fa-download"></i> Export
+        </button>
+      </div>
+    </div>
+    
+    <div class="ip-mappings-container">
+      <div class="search-box">
+        <input type="text" id="ipSearch" placeholder="Search IP or Technique ID...">
+        <i class="fas fa-search"></i>
+      </div>
+      
+      <div class="mapping-filters">
+        <select id="frameworkFilter">
+          <option value="all">All Frameworks</option>
+          <option value="attack">ATT&CK</option>
+          <option value="car">CAR</option>
+          <option value="d3fend">D3FEND</option>
+          <option value="engage">ENGAGE</option>
+        </select>
+        <select id="severityFilter">
+          <option value="all">All Severities</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+      
+      <div class="ip-mappings-list" id="ipMappingsList">
+        <!-- Mappings will be populated here -->
+      </div>
+    </div>
+  </aside>
+
+  <!-- Center Content - Framework Details -->
+  <section class="mitre-content">
+    <div class="content-header">
+      <h1>Framework Analysis Dashboard</h1>
+      <div class="framework-tabs">
+        <button class="tab-btn active" data-framework="attack">
+          <i class="fas fa-shield-alt"></i> ATT&CK
+        </button>
+        <button class="tab-btn" data-framework="car">
+          <i class="fas fa-chart-line"></i> CAR
+        </button>
+        <button class="tab-btn" data-framework="d3fend">
+          <i class="fas fa-shield-virus"></i> D3FEND
+        </button>
+        <button class="tab-btn" data-framework="engage">
+          <i class="fas fa-chess"></i> ENGAGE
+        </button>
+      </div>
+    </div>
+
+    <!-- Framework Content Panels -->
+    <div class="framework-panels">
+      
+      <!-- ATT&CK Panel -->
+      <div class="framework-panel active" id="attack-panel">
+        <div class="panel-header">
+          <h2>MITRE ATT&CK Framework</h2>
+          <div class="panel-stats">
+            <span class="stat-item">Techniques: <strong id="attackTechniques">0</strong></span>
+            <span class="stat-item">Tactics: <strong id="attackTactics">0</strong></span>
+            <span class="stat-item">Coverage: <strong id="attackCoverage">0%</strong></span>
+          </div>
+        </div>
+        
+        <div class="techniques-grid" id="attackTechniquesGrid">
+          <!-- ATT&CK techniques will be populated here -->
+        </div>
+      </div>
+
+      <!-- CAR Panel -->
+      <div class="framework-panel" id="car-panel">
+        <div class="panel-header">
+          <h2>MITRE CAR Framework</h2>
+          <div class="panel-stats">
+            <span class="stat-item">Analytics: <strong id="carAnalytics">0</strong></span>
+            <span class="stat-item">Confidence: <strong id="carConfidence">0%</strong></span>
+          </div>
+        </div>
+        
+        <div class="analytics-grid" id="carAnalyticsGrid">
+          <!-- CAR analytics will be populated here -->
+        </div>
+      </div>
+
+      <!-- D3FEND Panel -->
+      <div class="framework-panel" id="d3fend-panel">
+        <div class="panel-header">
+          <h2>MITRE D3FEND Framework</h2>
+          <div class="panel-stats">
+            <span class="stat-item">Defenses: <strong id="d3fendDefenses">0</strong></span>
+            <span class="stat-item">Effectiveness: <strong id="d3fendEffectiveness">0%</strong></span>
+          </div>
+        </div>
+        
+        <div class="defenses-grid" id="d3fendDefensesGrid">
+          <!-- D3FEND defenses will be populated here -->
+        </div>
+      </div>
+
+      <!-- ENGAGE Panel -->
+      <div class="framework-panel" id="engage-panel">
+        <div class="panel-header">
+          <h2>MITRE ENGAGE Framework</h2>
+          <div class="panel-stats">
+            <span class="stat-item">Techniques: <strong id="engageTechniques">0</strong></span>
+            <span class="stat-item">Risk Level: <strong id="engageRisk">LOW</strong></span>
+          </div>
+        </div>
+        
+        <div class="engage-grid" id="engageTechniquesGrid">
+          <!-- ENGAGE techniques will be populated here -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Right Sidebar - Log Details -->
+  <aside class="log-details-sidebar">
+    <div class="sidebar-header">
+      <h2><i class="fas fa-file-alt"></i> LOG DETAILS</h2>
+      <div class="sidebar-controls">
+        <button id="clearLogDetails" class="btn-cyber">
+          <i class="fas fa-times"></i> Clear
+        </button>
+      </div>
+    </div>
+    
+    <div class="log-details-container">
+      <div class="selected-item" id="selectedItem">
+        <p class="placeholder">Select an IP or technique to view details</p>
+      </div>
+      
+      <div class="log-entries" id="logEntries">
+        <!-- Log entries will be populated here -->
+      </div>
+    </div>
+  </aside>
+
+</main>
+
+<!-- ═══ MODALS ═══ -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-content" id="modalContent">
+    <div class="modal-header">
+      <h3 id="modalTitle">Technique Details</h3>
+      <button class="modal-close" id="modalClose">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <!-- Modal content will be populated here -->
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SCRIPTS ═══ -->
+<script src="/static/matrix.js"></script>
+<script src="/static/mitre_mapping_dashboard.js"></script>
+
+</body>
+</html>

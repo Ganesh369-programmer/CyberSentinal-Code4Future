@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 
 from mitre_map import get_mitre_info, format_mitre_badge
+from mitre_car_map import get_car_info, format_car_badge
 from soar import get_response_playbook
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -276,9 +277,10 @@ def detect_threats(logs: list = None) -> list:
     for alert in deduped:
         _compute_correlation_score(alert, deduped)
 
-    # Enrich with MITRE + SOAR
+    # Enrich with MITRE + CAR + SOAR
     for alert in deduped:
         alert["mitre"]   = format_mitre_badge(alert["type"])
+        alert["car"]     = format_car_badge(alert["type"])
         alert["playbook"] = get_response_playbook(
             alert["type"],
             ip      = alert.get("src_ip", "UNKNOWN"),
