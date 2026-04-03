@@ -1016,5 +1016,203 @@
     "password_tried": "0011",
     "attack_id": 2275274519328,
     "id": 113
+  },
+  {
+    "timestamp": "2026-04-03 23:53:00",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: 123456",
+    "password_tried": "123456",
+    "attack_id": 3049193953600,
+    "id": 114
+  },
+  {
+    "timestamp": "2026-04-03 23:53:00",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: password",
+    "password_tried": "password",
+    "attack_id": 3049193953600,
+    "id": 115
+  },
+  {
+    "timestamp": "2026-04-03 23:53:01",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: 123456789",
+    "password_tried": "123456789",
+    "attack_id": 3049193953600,
+    "id": 116
+  },
+  {
+    "timestamp": "2026-04-03 23:53:01",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: 12345678",
+    "password_tried": "12345678",
+    "attack_id": 3049193953600,
+    "id": 117
+  },
+  {
+    "timestamp": "2026-04-03 23:53:01",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: 12345",
+    "password_tried": "12345",
+    "attack_id": 3049193953600,
+    "id": 118
+  },
+  {
+    "timestamp": "2026-04-03 23:53:02",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: 1234567",
+    "password_tried": "1234567",
+    "attack_id": 3049193953600,
+    "id": 119
+  },
+  {
+    "timestamp": "2026-04-03 23:53:03",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: 1234567890",
+    "password_tried": "1234567890",
+    "attack_id": 3049193953600,
+    "id": 120
+  },
+  {
+    "timestamp": "2026-04-03 23:53:03",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: 1234",
+    "password_tried": "1234",
+    "attack_id": 3049193953600,
+    "id": 121
+  },
+  {
+    "timestamp": "2026-04-03 23:53:04",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: qwerty",
+    "password_tried": "qwerty",
+    "attack_id": 3049193953600,
+    "id": 122
+  },
+  {
+    "timestamp": "2026-04-03 23:53:04",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: abc123",
+    "password_tried": "abc123",
+    "attack_id": 3049193953600,
+    "id": 123
+  },
+  {
+    "timestamp": "2026-04-03 23:53:04",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: 111111",
+    "password_tried": "111111",
+    "attack_id": 3049193953600,
+    "id": 124
+  },
+  {
+    "timestamp": "2026-04-03 23:53:05",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: password123",
+    "password_tried": "password123",
+    "attack_id": 3049193953600,
+    "id": 125
+  },
+  {
+    "timestamp": "2026-04-03 23:53:05",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: admin",
+    "password_tried": "admin",
+    "attack_id": 3049193953600,
+    "id": 126
+  },
+  {
+    "timestamp": "2026-04-03 23:53:06",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: letmein",
+    "password_tried": "letmein",
+    "attack_id": 3049193953600,
+    "id": 127
+  },
+  {
+    "timestamp": "2026-04-03 23:53:06",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: welcome",
+    "password_tried": "welcome",
+    "attack_id": 3049193953600,
+    "id": 128
+  },
+  {
+    "timestamp": "2026-04-03 23:53:06",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: monkey",
+    "password_tried": "monkey",
+    "attack_id": 3049193953600,
+    "id": 129
+  },
+  {
+    "timestamp": "2026-04-03 23:53:07",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: 1234567890",
+    "password_tried": "1234567890",
+    "attack_id": 3049193953600,
+    "id": 130
+  },
+  {
+    "timestamp": "2026-04-03 23:53:07",
+    "source": "user",
+    "user": "admin",
+    "ip": "192.168.1.100",
+    "status": "failure",
+    "message": "Login attempt with password: password1",
+    "password_tried": "password1",
+    "attack_id": 3049193953600,
+    "id": 131
   }
 ]

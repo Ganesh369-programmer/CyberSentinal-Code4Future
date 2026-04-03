@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Security Logs Dashboard — CyberSentinel SOC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <style>
+    .logs-dashboard { padding: 15px; max-width: 1600px; margin: 0 auto; }
+    .logs-header { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid rgba(0,180,255,0.3);
+    }
+    .logs-title { font-family: 'Orbitron', sans-serif; font-size: 20px; color: #00ff88; }
+    
+    /* Two-column layout for logs */
+    .logs-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    
+    .log-panel {
+      background: rgba(0,10,20,0.9);
+      border: 1px solid rgba(0,180,255,0.2);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      max-height: 500px;
+    }
+    
+    .log-panel-header {
+      background: rgba(0,30,60,0.8);
+      padding: 12px 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(0,180,255,0.2);
+    }
+    
+    .log-panel-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .login-title { color: #00b4ff; }
+    .firewall-title-panel { color: #ff3860; }
+    
+    .log-count-badge {
+      background: rgba(0,180,255,0.2);
+      color: #00b4ff;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-family: 'Share Tech Mono', monospace;
+    }
+    
+    .log-table-container {
+      overflow-y: auto;
+      flex: 1;
+    }
+    
+    .dual-table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      font-size: 11px;
+      font-family: 'Share Tech Mono', monospace;
+    }
+    
+    .dual-table th {
+      background: rgba(0,50,100,0.6);
+      padding: 8px;
+      text-align: left;
+      color: #00b4ff;
+      text-transform: uppercase;
+      font-size: 9px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    
+    .dual-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(0,180,255,0.1);
+    }
+    
+    .dual-table tr:hover { background: rgba(0,180,255,0.05); }
+    
+    .col-time { width: 18%; }
+    .col-action { width: 10%; }
+    .col-src { width: 15%; }
+    .col-dst { width: 15%; }
+    .col-port { width: 10%; }
+    .col-status { width: 12%; }
+    .col-user { width: 20%; }
+    
+    .status-success { color: #00ff88; }
+    .status-failure { color: #ff3860; }
+    .status-blocked { color: #ff3860; font-weight: bold; }
+    .status-allowed { color: #00ff88; }
+    
+    .action-drop { color: #ff3860; font-weight: bold; }
+    .action-allow { color: #00ff88; }
+    
+    .proto-udp { color: #ffaa00; }
+    .proto-tcp { color: #00b4ff; }
+    .proto-icmp { color: #cc88ff; }
+    
+    /* Chatbot panel at bottom */
+    .chatbot-section {
+      background: rgba(0,10,20,0.95);
+      border: 1px solid rgba(0,255,136,0.3);
+      border-radius: 8px;
+      height: 300px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .chatbot-header {
+      background: rgba(0,60,40,0.8);
+      padding: 10px 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(0,255,136,0.2);
+    }
+    
+    .chatbot-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 13px;
+      color: #00ff88;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .chatbot-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+    
+    .chat-input-area {
+      padding: 10px;
+      border-top: 1px solid rgba(0,255,136,0.2);
+      display: flex;
+      gap: 10px;
+    }
+    
+    .chat-input {
+      flex: 1;
+      background: rgba(0,20,40,0.8);
+      border: 1px solid rgba(0,255,136,0.3);
+      color: #e0f0ff;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-family: 'Share Tech Mono', monospace;
+    }
+    
+    .chat-send-btn {
+      background: rgba(0,255,136,0.2);
+      border: 1px solid rgba(0,255,136,0.5);
+      color: #00ff88;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+    }
+    
+    .message {
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      border-radius: 4px;
+      max-width: 80%;
+      font-size: 12px;
+    }
+    
+    .message-user {
+      background: rgba(0,180,255,0.2);
+      border: 1px solid rgba(0,180,255,0.3);
+      margin-left: auto;
+      color: #00b4ff;
+    }
+    
+    .message-assistant {
+      background: rgba(0,255,136,0.1);
+      border: 1px solid rgba(0,255,136,0.2);
+      color: #e0f0ff;
+    }
+    
+    .quick-chips {
+      display: flex;
+      gap: 8px;
+      padding: 8px 10px;
+      flex-wrap: wrap;
+      border-top: 1px solid rgba(0,255,136,0.1);
+    }
+    
+    .chip {
+      background: rgba(0,180,255,0.15);
+      border: 1px solid rgba(0,180,255,0.3);
+      color: #00b4ff;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    
+    .chip:hover {
+      background: rgba(0,180,255,0.3);
+    }
+    
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    .stat-box {
+      background: rgba(0,20,40,0.8);
+      border: 1px solid rgba(0,180,255,0.2);
+      border-radius: 6px;
+      padding: 10px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 20px;
+      font-weight: bold;
+    }
+    
+    .stat-label {
+      font-size: 10px;
+      color: #8899aa;
+      text-transform: uppercase;
+    }
+    
+    .back-btn, .refresh-btn {
+      background: rgba(0,180,255,0.2);
+      border: 1px solid rgba(0,180,255,0.5);
+      color: #00b4ff;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+    
+    .back-btn:hover, .refresh-btn:hover {
+      background: rgba(0,180,255,0.3);
+    }
+    
+    .no-data {
+      text-align: center;
+      padding: 40px;
+      color: #8899aa;
+      font-style: italic;
+    }
+    
+    @media (max-width: 1200px) {
+      .logs-container {
+        grid-template-columns: 1fr;
+      }
+      .stats-row {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="matrixCanvas"></canvas>
+<div class="scanlines"></div>
+
+<!-- ═══ HEADER ═══ -->
+<header class="site-header">
+  <div class="header-left">
+    <div class="logo-icon">
+      <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
+        <polygon points="16,2 30,10 30,22 16,30 2,22 2,10" stroke="#00ff88" stroke-width="1.5" fill="none"/>
+        <polygon points="16,8 24,13 24,19 16,24 8,19 8,13" stroke="#00ff88" stroke-width="1" fill="rgba(0,255,136,0.05)"/>
+        <circle cx="16" cy="16" r="3" fill="#00ff88"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <span class="logo-main">Code4<span class="logo-accent">Future</span></span>
+      <span class="logo-sub">UNIFIED SECURITY LOGS</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <a href="/" class="back-btn">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Dashboard
+    </a>
+    <button class="refresh-btn" onclick="loadAllData()">↻ Refresh</button>
+  </div>
+</header>
+
+<!-- ═══ MAIN CONTENT ═══ -->
+<main class="logs-dashboard">
+  
+  <div class="logs-header">
+    <div class="logs-title">📊 LOGIN & FIREWALL LOGS COMPARISON</div>
+    <div style="color: #8899aa; font-size: 11px;">
+      Real-time side-by-side monitoring
+    </div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-value" style="color: #00b4ff;" id="statLoginTotal">—</div>
+      <div class="stat-label">Login Events</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" style="color: #00ff88;" id="statLoginSuccess">—</div>
+      <div class="stat-label">Success</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" style="color: #ff3860;" id="statLoginFail">—</div>
+      <div class="stat-label">Failed</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" style="color: #ff3860;" id="statFirewallTotal">—</div>
+      <div class="stat-label">Firewall Events</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" style="color: #ff3860;" id="statFirewallBlocked">—</div>
+      <div class="stat-label">Blocked</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" style="color: #00ff88;" id="statFirewallAllowed">—</div>
+      <div class="stat-label">Allowed</div>
+    </div>
+  </div>
+
+  <!-- Side by Side Logs -->
+  <div class="logs-container">
+    <!-- Login Logs Panel -->
+    <div class="log-panel">
+      <div class="log-panel-header">
+        <div class="log-panel-title login-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="6" stroke="#00b4ff" stroke-width="1.2"/>
+            <path d="M7 4v3l2 2" stroke="#00b4ff" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          🔐 LOGIN / AUTH LOGS
+        </div>
+        <span class="log-count-badge" id="loginCount">0 entries</span>
+      </div>
+      <div class="log-table-container">
+        <table class="dual-table">
+          <thead>
+            <tr>
+              <th class="col-time">Time</th>
+              <th class="col-user">User</th>
+              <th class="col-src">IP Address</th>
+              <th class="col-status">Status</th>
+              <th class="col-action">Source</th>
+            </tr>
+          </thead>
+          <tbody id="loginTableBody">
+            <tr><td colspan="5" class="no-data">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Firewall Logs Panel -->
+    <div class="log-panel">
+      <div class="log-panel-header">
+        <div class="log-panel-title firewall-title-panel">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <polygon points="7,1 13,4 13,10 7,13 1,10 1,4" stroke="#ff3860" stroke-width="1.2" fill="none"/>
+            <path d="M7 5v4M5 7h4" stroke="#ff3860" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          🛡️ FIREWALL LOGS
+        </div>
+        <span class="log-count-badge" style="background: rgba(255,56,96,0.2); color: #ff3860;" id="firewallCount">0 entries</span>
+      </div>
+      <div class="log-table-container">
+        <table class="dual-table">
+          <thead>
+            <tr>
+              <th class="col-time">Time</th>
+              <th class="col-action">Action</th>
+              <th class="col-src">Source IP</th>
+              <th class="col-dst">Dest IP</th>
+              <th class="col-port">Port</th>
+              <th class="col-status">Protocol</th>
+            </tr>
+          </thead>
+          <tbody id="firewallTableBody">
+            <tr><td colspan="6" class="no-data">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chatbot Section -->
+  <div class="chatbot-section">
+    <div class="chatbot-header">
+      <div class="chatbot-title">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="7" stroke="#00ff88" stroke-width="1.2"/>
+          <path d="M5 8h6M8 5v6" stroke="#00ff88" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        🤖 AI SECURITY ANALYST — Ask about both log types
+      </div>
+      <span style="font-size: 11px; color: #8899aa;">Compare & Analyze</span>
+    </div>
+    <div class="chatbot-messages" id="chatMessages">
+      <div class="message message-assistant">
+        <strong>CyberSentinel AI:</strong> I can analyze both login and firewall logs side-by-side. Try asking:<br>
+        • "Compare login failures with firewall blocks"<br>
+        • "Show attacks from IP 192.168.1.100"<br>
+        • "Correlate firewall drops with auth failures"
+      </div>
+    </div>
+    <div class="quick-chips">
+      <span class="chip" onclick="sendQuery('Compare login failures with firewall blocks')">🔍 Compare Failures & Blocks</span>
+      <span class="chip" onclick="sendQuery('Show all activity from suspicious IPs')">🚨 Suspicious IPs</span>
+      <span class="chip" onclick="sendQuery('Correlate firewall drops with auth failures')">🔗 Correlate Events</span>
+      <span class="chip" onclick="sendQuery('Show top attackers across all logs')">📊 Top Attackers</span>
+      <span class="chip" onclick="sendQuery('Summary of both log types')">📋 Summary</span>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" id="chatInput" placeholder="Ask about login or firewall logs..." 
+             onkeypress="if(event.key==='Enter')sendMessage()"/>
+      <button class="chat-send-btn" onclick="sendMessage()">Send ›</button>
+    </div>
+  </div>
+
+</main>
+
+<script src="/static/script.js"></script>
+<script>
+// Matrix background
+const canvas = document.getElementById('matrixCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+const drops = [];
+for (let i = 0; i < canvas.width / 14; i++) drops[i] = Math.random() * canvas.height;
+function drawMatrix() {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#003344';
+  ctx.font = '14px monospace';
+  for (let i = 0; i < drops.length; i++) {
+    const text = chars[Math.floor(Math.random() * chars.length)];
+    ctx.fillText(text, i * 14, drops[i] * 14);
+    if (drops[i] * 14 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
+  }
+}
+setInterval(drawMatrix, 50);
+
+// Load all data
+async function loadAllData() {
+  await Promise.all([loadLoginLogs(), loadFirewallLogs(), loadStats()]);
+}
+
+// Load login/auth logs
+async function loadLoginLogs() {
+  try {
+    const response = await fetch('/api/auth/logs');
+    const data = await response.json();
+    const tbody = document.getElementById('loginTableBody');
+    
+    if (data.logs && data.logs.length > 0) {
+      document.getElementById('loginCount').textContent = `${data.logs.length} entries`;
+      tbody.innerHTML = data.logs
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 100)
+        .map(log => `
+          <tr>
+            <td>${log.timestamp || 'N/A'}</td>
+            <td>${log.user || 'N/A'}</td>
+            <td style="color: #00b4ff;">${log.ip || 'N/A'}</td>
+            <td class="${log.status === 'success' ? 'status-success' : 'status-failure'}">
+              ${log.status || 'N/A'}
+            </td>
+            <td>${log.source || 'auth'}</td>
+          </tr>
+        `).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="5" class="no-data">No login logs available</td></tr>';
+    }
+  } catch (error) {
+    document.getElementById('loginTableBody').innerHTML = 
+      `<tr><td colspan="5" class="no-data">Error: ${error.message}</td></tr>`;
+  }
+}
+
+// Load firewall logs
+async function loadFirewallLogs() {
+  try {
+    const response = await fetch('/api/logs?source=firewall');
+    const data = await response.json();
+    const tbody = document.getElementById('firewallTableBody');
+    
+    if (data.logs && data.logs.length > 0) {
+      document.getElementById('firewallCount').textContent = `${data.logs.length} entries`;
+      tbody.innerHTML = data.logs
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 100)
+        .map(log => {
+          const protoClass = log.protocol === 'UDP' ? 'proto-udp' : 
+                            log.protocol === 'TCP' ? 'proto-tcp' : 'proto-icmp';
+          return `
+            <tr>
+              <td>${log.timestamp || 'N/A'}</td>
+              <td class="${log.action === 'DROP' ? 'action-drop' : 'action-allow'}">
+                ${log.action || 'N/A'}
+              </td>
+              <td style="color: #ff3860;">${log.ip || 'N/A'}</td>
+              <td style="color: #cc88ff;">${log.dest_ip || 'N/A'}</td>
+              <td>${log.port || 'N/A'}</td>
+              <td class="${protoClass}">${log.protocol || 'N/A'}</td>
+            </tr>
+          `;
+        }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="6" class="no-data">No firewall logs available</td></tr>';
+    }
+  } catch (error) {
+    document.getElementById('firewallTableBody').innerHTML = 
+      `<tr><td colspan="6" class="no-data">Error: ${error.message}</td></tr>`;
+  }
+}
+
+// Load stats
+async function loadStats() {
+  try {
+    // Get login stats
+    const loginRes = await fetch('/api/auth/logs');
+    const loginData = await loginRes.json();
+    const logs = loginData.logs || [];
+    document.getElementById('statLoginTotal').textContent = logs.length;
+    document.getElementById('statLoginSuccess').textContent = logs.filter(l => l.status === 'success').length;
+    document.getElementById('statLoginFail').textContent = logs.filter(l => l.status === 'failure').length;
+    
+    // Get firewall stats
+    const fwRes = await fetch('/api/firewall/stats');
+    const fwData = await fwRes.json();
+    document.getElementById('statFirewallTotal').textContent = fwData.stats?.total_entries || 0;
+    document.getElementById('statFirewallBlocked').textContent = fwData.stats?.blocked || 0;
+    document.getElementById('statFirewallAllowed').textContent = fwData.stats?.allowed || 0;
+  } catch (error) {
+    console.error('Stats error:', error);
+  }
+}
+
+// Chatbot functionality
+function sendQuery(query) {
+  document.getElementById('chatInput').value = query;
+  sendMessage();
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const message = input.value.trim();
+  if (!message) return;
+  
+  const chatMessages = document.getElementById('chatMessages');
+  
+  // Add user message
+  chatMessages.innerHTML += `<div class="message message-user">${message}</div>`;
+  input.value = '';
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: message, session_id: 'logs_dashboard' })
+    });
+    const data = await response.json();
+    
+    // Add assistant response
+    const responseText = data.response || 'Sorry, I could not process your request.';
+    chatMessages.innerHTML += `<div class="message message-assistant">${responseText.replace(/\n/g, '<br>')}</div>`;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  } catch (error) {
+    chatMessages.innerHTML += `<div class="message message-assistant" style="color: #ff3860;">Error: ${error.message}</div>`;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+}
+
+// Auto-refresh every 5 seconds
+setInterval(loadAllData, 5000);
+
+// Initial load
+loadAllData();
+</script>
+
+</body>
+</html>

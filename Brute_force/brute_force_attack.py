@@ -72,7 +72,7 @@ class BruteForceAttack:
         # Create log entry
         log_entry = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'source': 'brute_force_simulator',
+            'source': 'user',
             'user': username,
             'ip': target_ip,
             'status': 'success' if success else 'failure',

@@ -261,6 +261,7 @@ def detect_threats(logs: list = None) -> list:
     raw_alerts.extend(_detect_port_scan(logs))
     raw_alerts.extend(_detect_privilege_escalation(logs))
     raw_alerts.extend(_detect_lateral_movement(logs))
+    raw_alerts.extend(detect_windows_firewall_attacks(logs))
 
     # Deduplicate: same type + same src_ip → keep highest failure count
     seen = {}
@@ -398,7 +399,58 @@ def build_attack_timeline(ip: str, logs: list = None) -> dict:
     }
 
 
-# ── Quick self-test ───────────────────────────────────────────────────────────
+def detect_windows_firewall_attacks(logs):
+    """
+    Detect attacks from Windows Firewall logs.
+    Flags IPs with excessive blocked connections as potential attacks.
+    """
+    ip_count = {}
+    ip_details = {}
+    
+    for log in logs:
+        if log.get("source") == "firewall":
+            ip = log.get("ip")
+            if ip:
+                ip_count[ip] = ip_count.get(ip, 0) + 1
+                if ip not in ip_details:
+                    ip_details[ip] = {
+                        "ports": set(),
+                        "dest_ips": set(),
+                        "first_seen": log.get("timestamp"),
+                        "last_seen": log.get("timestamp"),
+                        "actions": set(),
+                        "evidence": []
+                    }
+                details = ip_details[ip]
+                details["ports"].add(log.get("port"))
+                details["dest_ips"].add(log.get("dest_ip"))
+                details["last_seen"] = log.get("timestamp")
+                details["actions"].add(log.get("action"))
+                details["evidence"].append(
+                    f"{log.get('timestamp')} | FIREWALL | {log.get('action')} {log.get('protocol')} from {ip}:{log.get('src_port','?')} to {log.get('dest_ip')}:{log.get('port')}"
+                )
+    
+    alerts = []
+    FIREWALL_THRESHOLD = 10  # Blocked connections to flag as attack
+    
+    for ip, count in ip_count.items():
+        if count >= FIREWALL_THRESHOLD:
+            details = ip_details[ip]
+            alerts.append({
+                "type": "firewall_attack",
+                "src_ip": ip,
+                "attempts": count,
+                "ports_targeted": list(details["ports"])[:10],
+                "dest_ips": list(details["dest_ips"])[:5],
+                "first_seen": details["first_seen"],
+                "last_seen": details["last_seen"],
+                "actions": list(details["actions"]),
+                "sources": ["firewall"],
+                "effective_severity": "HIGH",
+                "evidence": details["evidence"][:10]  # Limit evidence
+            })
+    
+    return alerts
 if __name__ == "__main__":
     import json
 

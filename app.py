@@ -5,9 +5,12 @@ from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import json
 import os
+import threading
+import time
 from datetime import datetime
 
-from detector import detect_threats, build_attack_timeline, load_logs
+from detector import detect_threats, build_attack_timeline, load_logs, detect_windows_firewall_attacks
+from windows_firewall_monitor import monitor, get_firewall_stats, read_all_logs
 from mitre_map import get_all_mappings, get_mitre_info
 from mitre_car_map import get_all_car_mappings, get_car_info
 from mitre_d3fend_map import get_all_d3fend_mappings, get_d3fend_info
@@ -15,17 +18,49 @@ from mitre_engage_map import get_all_engage_mappings, get_engage_info
 from mitre_framework_analyzer import MITREFrameworkAnalyzer
 from soar import get_response_playbook, get_all_playbook_names
 from Brute_force.brute_force_attack import brute_force_instance
-
+from llm import llm_bp 
 app = Flask(__name__, template_folder='templates')
 CORS(app)   # Allow frontend on different port during dev
 
-# ── Cached log data (loaded once at startup) ──────────────────────────────────
+# Register LLM chatbot blueprint
+app.register_blueprint(llm_bp)
+
+# Firewall log storage
+_FIREWALL_LOGS = []
+
+def handle_firewall_log(log):
+    """Callback for new firewall log entries"""
+    global _FIREWALL_LOGS, _LOGS
+    _FIREWALL_LOGS.append(log)
+    _LOGS.append(log)  # Add to main logs for unified analysis
+    print(f"[Firewall] {log['action']} from {log['ip']} to port {log['port']}")
+
+def start_firewall_monitor():
+    """Start Windows Firewall log monitoring in background thread"""
+    def run_monitor():
+        # First load existing logs
+        existing = read_all_logs()
+        global _FIREWALL_LOGS, _LOGS
+        _FIREWALL_LOGS.extend(existing)
+        _LOGS.extend(existing)
+        print(f"[Firewall] Loaded {len(existing)} existing firewall logs")
+        
+        # Start real-time monitoring
+        monitor(handle_firewall_log)
+    
+    thread = threading.Thread(target=run_monitor, daemon=True)
+    thread.start()
+    print("[Firewall] Real-time monitoring thread started")
 _LOGS = []
 
 def get_logs():
+    """Get all logs including real-time firewall updates"""
     global _LOGS
     if not _LOGS:
-        _LOGS = load_logs()
+        # Initial load: auth logs + firewall logs
+        auth_logs = load_logs()
+        firewall_logs = read_all_logs()
+        _LOGS = auth_logs + firewall_logs
     return _LOGS
 
 def append_auth_log(log_entry):
@@ -85,6 +120,16 @@ def login():
 @app.route("/brute-force")
 def brute_force_dashboard():
     return render_template("Brute_force/brute_force_dashboard.html")
+
+
+@app.route("/chatbot")
+def chatbot_page():
+    return render_template("chatbot.html")
+
+
+@app.route("/firewall-logs")
+def firewall_logs_page():
+    return render_template("firewall_logs.html")
 
 
 # ── POST /api/auth/log ───────────────────────────────────────────────────────────
@@ -440,6 +485,64 @@ def api_brute_force_status():
     return jsonify(brute_force_instance.get_stats())
 
 
+# ── GET /api/firewall/stats ───────────────────────────────────────────────────
+@app.route("/api/firewall/stats", methods=["GET"])
+def api_firewall_stats():
+    """Get Windows Firewall log statistics"""
+    stats = get_firewall_stats()
+    firewall_alerts = detect_windows_firewall_attacks(get_logs())
+    return jsonify({
+        "stats": stats,
+        "alerts": firewall_alerts,
+        "monitoring_active": True
+    })
+
+
+# ── GET /api/stats ────────────────────────────────────────────────────────────
+@app.route("/api/stats", methods=["GET"])
+def api_stats():
+    """Get overall system statistics"""
+    logs = get_logs()
+    alerts = detect_threats(logs)
+    firewall_stats = get_firewall_stats()
+    
+    # Count by source
+    sources = {}
+    for log in logs:
+        src = log.get("source", "unknown")
+        sources[src] = sources.get(src, 0) + 1
+    
+    # Count by status
+    statuses = {}
+    for log in logs:
+        status = log.get("status", "unknown")
+        statuses[status] = statuses.get(status, 0) + 1
+    
+    # Severity counts
+    severity_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+    for alert in alerts:
+        sev = alert.get("effective_severity", "LOW")
+        severity_counts[sev] = severity_counts.get(sev, 0) + 1
+    
+    return jsonify({
+        "logs": {
+            "total": len(logs),
+            "by_source": sources,
+            "by_status": statuses
+        },
+        "alerts": {
+            "total": len(alerts),
+            "by_severity": severity_counts
+        },
+        "firewall": {
+            "monitoring_active": True,
+            "firewall_entries": firewall_stats.get("total_entries", 0),
+            "blocked": firewall_stats.get("blocked", 0)
+        },
+        "timestamp": datetime.now().isoformat()
+    })
+
+
 # ── Health check ──────────────────────────────────────────────────────────────
 @app.route("/api/health", methods=["GET"])
 def api_health():
@@ -454,5 +557,9 @@ def api_health():
 # ── Boot ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("=== CyberSentinel SOC Co-Pilot API ===")
-    print(f"Loaded {len(get_logs())} log entries from data/logs.json")
+    print(f"Loaded {len(get_logs())} log entries")
+    
+    # Start Windows Firewall monitoring
+    start_firewall_monitor()
+    
     app.run(host="0.0.0.0", port=5000, debug=True)
