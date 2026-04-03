@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CyberSentinel — SOC Co-Pilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+
+<canvas id="matrixCanvas"></canvas>
+<div class="scanlines"></div>
+
+<!-- ═══ HEADER ═══ -->
+<header class="site-header">
+  <div class="header-left">
+    <div class="logo-icon">
+      <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
+        <polygon points="16,2 30,10 30,22 16,30 2,22 2,10" stroke="#00ff88" stroke-width="1.5" fill="none"/>
+        <polygon points="16,8 24,13 24,19 16,24 8,19 8,13" stroke="#00ff88" stroke-width="1" fill="rgba(0,255,136,0.05)"/>
+        <circle cx="16" cy="16" r="3" fill="#00ff88"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <span class="logo-main">Code4<span class="logo-accent">Future</span></span>
+      <span class="logo-sub">SOC CO-PILOT v2.0 · AI-DRIVEN SECURITY</span>
+    </div>
+  </div>
+  <div class="header-center">
+    <div class="status-badge" id="systemStatus">
+      <span class="pulse-dot"></span>
+      <span id="statusText">CONNECTING…</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="header-stats">
+      <div class="hstat critical-stat">
+        <span class="hstat-val" id="hs-critical">—</span>
+        <span class="hstat-label">CRITICAL</span>
+      </div>
+      <div class="hstat">
+        <span class="hstat-val" id="hs-high">—</span>
+        <span class="hstat-label">HIGH</span>
+      </div>
+      <div class="hstat">
+        <span class="hstat-val" id="hs-events">—</span>
+        <span class="hstat-label">EVENTS</span>
+      </div>
+    </div>
+    <div class="header-clock" id="headerClock">--:--:--</div>
+  </div>
+</header>
+
+<!-- ═══ ALERT BANNER ═══ -->
+<div id="alertBanner" class="alert-banner hidden">
+  <div class="alert-icon">⚠</div>
+  <div class="alert-text">
+    <strong>THREAT DETECTED</strong>
+    <span id="alertMsg">Suspicious activity identified in log correlation.</span>
+  </div>
+  <button class="alert-close" onclick="closeAlert()">✕</button>
+</div>
+
+<!-- ═══ MAIN 3-PANEL LAYOUT ═══ -->
+<main class="main-layout">
+
+  <!-- ── PANEL 1: ALERT FEED ── -->
+  <section class="panel alert-panel">
+    <div class="panel-header">
+      <span class="panel-title">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="6" stroke="#ff3860" stroke-width="1.2"/>
+          <path d="M7 3v4M7 9v1" stroke="#ff3860" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        LIVE ALERTS
+      </span>
+      <div class="panel-controls">
+        <button class="pill-btn active" onclick="setAlertFilter('all',this)">ALL</button>
+        <button class="pill-btn" onclick="setAlertFilter('CRITICAL',this)">CRITICAL</button>
+        <button class="pill-btn" onclick="setAlertFilter('HIGH',this)">HIGH</button>
+        <button class="pill-btn" onclick="setAlertFilter('MEDIUM',this)">MED</button>
+      </div>
+    </div>
+    <div class="alert-feed" id="alertFeed">
+      <div class="loading-state">
+        <div class="loading-dots"><span></span><span></span><span></span></div>
+        <span>Loading threat intelligence…</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PANEL 2: ATTACK TIMELINE ── -->
+  <section class="panel timeline-panel">
+    <div class="panel-header">
+      <span class="panel-title">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="6" stroke="#00b4ff" stroke-width="1.2"/>
+          <path d="M7 4v3l2 2" stroke="#00b4ff" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        ATTACK TIMELINE
+      </span>
+      <div class="ip-selector">
+        <select id="ipSelect" onchange="loadTimeline(this.value)" class="ip-select">
+          <option value="">— Select IP —</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Metrics row -->
+    <div class="metrics-row">
+      <div class="metric-card">
+        <div class="mc-label">TOTAL LOGS</div>
+        <div class="mc-val" id="mc-total">—</div>
+        <div class="mc-bar"><div class="mc-fill green-fill" id="mc-total-bar" style="width:100%"></div></div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">FAILURES</div>
+        <div class="mc-val danger" id="mc-fail">—</div>
+        <div class="mc-bar"><div class="mc-fill red-fill" id="mc-fail-bar"></div></div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">THREATS</div>
+        <div class="mc-val warning" id="mc-threats">—</div>
+        <div class="mc-bar"><div class="mc-fill orange-fill" id="mc-threats-bar"></div></div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">SUSP. IPs</div>
+        <div class="mc-val info" id="mc-ips">—</div>
+        <div class="mc-bar"><div class="mc-fill blue-fill" id="mc-ips-bar"></div></div>
+      </div>
+    </div>
+
+    <!-- Timeline events -->
+    <div class="timeline-wrap" id="timelineWrap">
+      <div class="timeline-placeholder">Select an IP above to reconstruct its attack timeline.</div>
+    </div>
+
+    <!-- Log table -->
+    <div class="log-section">
+      <div class="log-header">
+        <span class="panel-title" style="font-size:10px">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <rect x="1" y="1" width="12" height="12" rx="2" stroke="#00b4ff" stroke-width="1.2"/>
+            <path d="M4 5h6M4 7h6M4 9h4" stroke="#00b4ff" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          SECURITY LOGS
+        </span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="pill-btn active" id="toggleAll" onclick="filterLogs('all')">ALL</button>
+          <button class="pill-btn" id="toggleThreats" onclick="filterLogs('threats')">THREATS</button>
+          <input type="text" class="log-search" id="logSearch" placeholder="🔍 filter…" oninput="filterLogsSearch(this.value)"/>
+        </div>
+      </div>
+      <div class="log-table-wrap">
+        <table class="log-table">
+          <thead><tr><th>TIME</th><th>SRC</th><th>USER</th><th>IP</th><th>STATUS</th></tr></thead>
+          <tbody id="logTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PANEL 3: AI CHAT ── -->
+  <section class="panel chat-panel">
+    <div class="panel-header">
+      <span class="panel-title">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="7" stroke="#00ff88" stroke-width="1.2"/>
+          <path d="M5 8h6M8 5v6" stroke="#00ff88" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        AI ANALYST
+      </span>
+      <span class="panel-tag" id="aiSourceTag">NLP ENGINE</span>
+    </div>
+
+    <div class="chat-messages" id="chatMessages"></div>
+
+    <!-- Quick chips -->
+    <div class="quick-suggestions">
+      <div class="qs-chips">
+        <button class="qs-chip" onclick="sendChip('Show failed login attempts')">Failed Logins</button>
+        <button class="qs-chip" onclick="sendChip('Any suspicious activity?')">Threats</button>
+        <button class="qs-chip" onclick="sendChip('Which IP has most failures?')">Top Offender</button>
+        <button class="qs-chip" onclick="sendChip('Summarize all logs')">Summary</button>
+        <button class="qs-chip" onclick="sendChip('What MITRE techniques were detected?')">MITRE</button>
+        <button class="qs-chip" onclick="sendChip('Reconstruct attack timeline')">Timeline</button>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="chat-input-area">
+      <div class="input-wrapper">
+        <span class="input-prefix">›_</span>
+        <input type="text" id="chatInput" placeholder="Ask the AI analyst…" autocomplete="off"/>
+        <button class="send-btn" onclick="handleSend()">
+          <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+            <path d="M2 9h14M9 2l7 7-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══ INVESTIGATION MODAL ═══ -->
+<div id="investigateModal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="panel-title">🔍 INVESTIGATION REPORT</span>
+      <button class="alert-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody">Loading…</div>
+  </div>
+</div>
+<div class="modal-backdrop hidden" id="modalBackdrop" onclick="closeModal()"></div>
+
+<script src="/static/script.js"></script>
+</body>
+</html>
