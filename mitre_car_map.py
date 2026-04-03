@@ -104,6 +104,20 @@ for each group in group_by_user:
 }
 
 
+def format_car_badge(threat_type: str) -> dict:
+    """Format CAR framework badge for display"""
+    car_info = get_car_info(threat_type)
+    if car_info:
+        return {
+            "id": car_info["analytics_id"],
+            "name": car_info["analytics_name"],
+            "hypothesis": car_info["hypothesis"],
+            "tactics": car_info["attack_tactics"],
+            "severity": car_info.get("severity", "MEDIUM")
+        }
+    return None
+
+
 def get_car_info(threat_type: str) -> dict:
     """
     Return the full MITRE CAR entry for a given threat type.

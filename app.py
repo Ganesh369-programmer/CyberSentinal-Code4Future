@@ -14,7 +14,8 @@ from mitre_d3fend_map import get_all_d3fend_mappings, get_d3fend_info
 from mitre_engage_map import get_all_engage_mappings, get_engage_info
 from mitre_framework_analyzer import MITREFrameworkAnalyzer
 from soar import get_response_playbook, get_all_playbook_names
-from Brute_force.brute_force_attack import brute_force_instance
+from log_mitre_mapper import log_mitre_mapper
+from nvdia_ai.ai_chat_interface import ai_chat_bp
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)   # Allow frontend on different port during dev
@@ -25,8 +26,20 @@ _LOGS = []
 def get_logs():
     global _LOGS
     if not _LOGS:
-        _LOGS = load_logs()
+        # Load logs from auth_logs.json for MITRE mapping
+        logs_path = os.path.join(os.path.dirname(__file__), "real_json", "auth_logs.json")
+        try:
+            with open(logs_path, 'r') as f:
+                _LOGS = json.load(f)
+            print(f"[app] Loaded {len(_LOGS)} log entries from auth_logs.json")
+        except Exception as e:
+            print(f"[app] WARNING: Could not load auth_logs.json: {e}")
+            _LOGS = []
     return _LOGS
+
+def get_system_logs():
+    """Get system logs for main dashboard (from data/logs.json)"""
+    return load_logs()
 
 def append_auth_log(log_entry):
     """Append authentication log to the real_json/auth_logs.json file and update cache"""
@@ -62,8 +75,9 @@ def append_auth_log(log_entry):
     except Exception as e:
         print(f"[app] ERROR: Could not append auth log: {e}")
         return False
-    return True
 
+# Register AI chat blueprint
+app.register_blueprint(ai_chat_bp, url_prefix='/ai')
 
 # ── Page Route ────────────────────────────────────────────────────────────────
 
@@ -85,6 +99,16 @@ def login():
 @app.route("/brute-force")
 def brute_force_dashboard():
     return render_template("Brute_force/brute_force_dashboard.html")
+
+
+@app.route("/mitre-mapping")
+def mitre_mapping_dashboard():
+    return render_template("mitre_mapping_dashboard.html")
+
+
+@app.route("/ai-chat")
+def ai_chat_dashboard():
+    return render_template("ai_chat.html")
 
 
 # ── POST /api/auth/log ───────────────────────────────────────────────────────────
@@ -389,55 +413,393 @@ def api_timeline(ip):
     return jsonify(timeline)
 
 
-# ── Brute Force API Endpoints ─────────────────────────────────────────────────────
+# ── GET /api/mitre-mappings ───────────────────────────────────────────────────
+@app.route("/api/mitre-mappings", methods=["GET"])
+def api_mitre_mappings():
+    """Get MITRE framework mappings for current security logs"""
+    logs = get_logs()
+    mapper = log_mitre_mapper
+    
+    # Get all mappings for the logs
+    mappings_summary = mapper.get_technique_summary(logs)
+    
+    # Get detailed technique information
+    attack_techniques = {}
+    car_analytics = {}
+    d3fend_defenses = {}
+    engage_techniques = {}
+    
+    for threat_type in mappings_summary['framework_coverage']['attack']:
+        attack_info = get_mitre_info(threat_type)
+        if attack_info:
+            attack_techniques[threat_type] = attack_info
+    
+    for threat_type in mappings_summary['framework_coverage']['car']:
+        car_info = get_car_info(threat_type)
+        if car_info:
+            car_analytics[threat_type] = car_info
+    
+    for threat_type in mappings_summary['framework_coverage']['d3fend']:
+        d3fend_info = get_d3fend_info(threat_type)
+        if d3fend_info:
+            d3fend_defenses[threat_type] = d3fend_info
+    
+    for threat_type in mappings_summary['framework_coverage']['engage']:
+        engage_info = get_engage_info(threat_type)
+        if engage_info:
+            engage_techniques[threat_type] = engage_info
+    
+    return jsonify({
+        "total_logs": mappings_summary["total_logs"],
+        "mapped_logs": mappings_summary["mapped_logs"],
+        "framework_coverage": mappings_summary["framework_coverage"],
+        "attack_techniques": attack_techniques,
+        "car_analytics": car_analytics,
+        "d3fend_defenses": d3fend_defenses,
+        "engage_techniques": engage_techniques,
+        "ips_by_technique": mappings_summary["ips_by_technique"]
+    })
 
-@app.route("/api/brute-force/start", methods=["POST"])
-def api_brute_force_start():
-    """Start a brute force attack"""
-    body = request.get_json(force=True)
-    
-    if not body:
-        return jsonify({"success": False, "message": "No configuration provided"}), 400
-    
-    # Validate required fields
-    required_fields = ["target_ip", "target_username", "password_method", "max_attempts"]
-    missing_fields = [field for field in required_fields if field not in body]
-    
-    if missing_fields:
+
+@app.route("/api/investigation/report/<ip>", methods=["GET"])
+def api_investigation_report(ip):
+    """Generate detailed investigation report for a specific IP"""
+    try:
+        logs = get_logs()
+        ip_logs = [log for log in logs if log.get('ip') == ip]
+        
+        if not ip_logs:
+            return jsonify({
+                'error': f'No logs found for IP {ip}'
+            }), 404
+        
+        # Get MITRE mappings for this IP
+        mappings = log_mitre_mapper.analyze_logs_batch(ip_logs)
+        
+        # Calculate risk score
+        risk_score = calculate_risk_score(ip_logs, mappings)
+        
+        # Extract key statistics
+        successful_logins = len([log for log in ip_logs if log.get('status') == 'success'])
+        failed_logins = len([log for log in ip_logs if log.get('status') == 'failure'])
+        
+        # Get unique techniques
+        techniques = set()
+        for mapping in mappings:
+            if mapping.get('mitre_attack', {}).get('technique_id'):
+                techniques.add(mapping['mitre_attack']['technique_id'])
+            if mapping.get('mitre_car', {}).get('analytics_id'):
+                techniques.add(mapping['mitre_car']['analytics_id'])
+        
+        # Get time range
+        timestamps = [log.get('timestamp') for log in ip_logs if log.get('timestamp')]
+        if timestamps:
+            first_seen = min(timestamps)
+            last_seen = max(timestamps)
+        else:
+            first_seen = last_seen = None
+        
+        # Get unique users
+        users = set(log.get('user') for log in ip_logs if log.get('user'))
+        
+        # Detect privilege escalation attempts
+        sudo_events = [log for log in ip_logs if 'sudo' in log.get('message', '').lower()]
+        
+        # Build investigation report
+        report = {
+            'ip': ip,
+            'risk_score': risk_score,
+            'first_seen': first_seen,
+            'last_seen': last_seen,
+            'total_events': len(ip_logs),
+            'successful_logins': successful_logins,
+            'failed_logins': failed_logins,
+            'unique_users': list(users),
+            'privilege_escalation_attempts': len(sudo_events),
+            'techniques_detected': list(techniques),
+            'mitre_mappings': mappings,
+            'evidence': ip_logs[:10],  # Show first 10 log entries as evidence
+            'attack_timeline': build_attack_timeline(ip_logs),
+            'severity': get_severity_from_risk(risk_score)
+        }
+        
+        return jsonify(report)
+        
+    except Exception as e:
+        print(f"[app] ERROR: Could not generate investigation report for {ip}: {e}")
         return jsonify({
-            "success": False, 
-            "message": f"Missing required fields: {missing_fields}"
-        }), 400
+            'error': str(e)
+        }), 500
+
+
+def calculate_risk_score(logs, mappings):
+    """Calculate risk score based on log patterns and MITRE mappings"""
+    score = 0
     
-    # Start the attack
-    success, message = brute_force_instance.start_attack(
-        target_ip=body["target_ip"],
-        target_username=body["target_username"],
-        password_method=body["password_method"],
-        max_attempts=body["max_attempts"]
-    )
+    # Base score from failed logins
+    failed_count = len([log for log in logs if log.get('status') == 'failure'])
+    score += min(failed_count * 2, 20)  # Max 20 points from failed logins
     
-    return jsonify({
-        "success": success,
-        "message": message
-    })
-
-
-@app.route("/api/brute-force/stop", methods=["POST"])
-def api_brute_force_stop():
-    """Stop the current brute force attack"""
-    success, message = brute_force_instance.stop_attack()
+    # Bonus for successful logins (compromise)
+    success_count = len([log for log in logs if log.get('status') == 'success'])
+    score += success_count * 5  # 5 points per successful login
     
-    return jsonify({
-        "success": success,
-        "message": message
-    })
+    # MITRE technique severity
+    for mapping in mappings:
+        if mapping.get('severity') == 'CRITICAL':
+            score += 15
+        elif mapping.get('severity') == 'HIGH':
+            score += 10
+        elif mapping.get('severity') == 'MEDIUM':
+            score += 5
+        elif mapping.get('severity') == 'LOW':
+            score += 2
+    
+    # Privilege escalation bonus
+    sudo_events = [log for log in logs if 'sudo' in log.get('message', '').lower()]
+    score += len(sudo_events) * 8
+    
+    # Multiple users bonus (potential credential stuffing)
+    users = set(log.get('user') for log in logs if log.get('user'))
+    if len(users) > 1:
+        score += len(users) * 3
+    
+    return min(score, 100)  # Cap at 100
 
 
-@app.route("/api/brute-force/status", methods=["GET"])
-def api_brute_force_status():
-    """Get the current status of the brute force attack"""
-    return jsonify(brute_force_instance.get_stats())
+def get_severity_from_risk(risk_score):
+    """Convert risk score to severity level"""
+    if risk_score >= 80:
+        return 'CRITICAL'
+    elif risk_score >= 60:
+        return 'HIGH'
+    elif risk_score >= 40:
+        return 'MEDIUM'
+    else:
+        return 'LOW'
+
+
+# ── MITRE Mapping API Endpoints ───────────────────────────────────────────────────
+
+@app.route("/api/mitre/mappings/all", methods=["GET"])
+def api_mitre_mappings_all():
+    """Get all log-to-MITRE framework mappings"""
+    try:
+        logs = get_logs()
+        mappings = log_mitre_mapper.analyze_logs_batch(logs)
+        
+        # Group mappings by framework for easier frontend processing
+        framework_data = {
+            'attack': log_mitre_mapper.extract_unique_techniques(mappings),
+            'car': log_mitre_mapper.extract_unique_analytics(mappings),
+            'd3fend': log_mitre_mapper.extract_unique_defenses(mappings),
+            'engage': log_mitre_mapper.extract_unique_engage_techniques(mappings)
+        }
+        
+        return jsonify({
+            'mappings': mappings,
+            'framework_data': framework_data,
+            'total_logs': len(logs)
+        })
+        
+    except Exception as e:
+        print(f"[app] ERROR: Could not generate MITRE mappings: {e}")
+        return jsonify({
+            'mappings': [],
+            'framework_data': {'attack': [], 'car': [], 'd3fend': [], 'engage': []},
+            'total_logs': 0,
+            'error': str(e)
+        }), 500
+
+
+@app.route("/api/mitre/mappings/summary", methods=["GET"])
+def api_mitre_mappings_summary():
+    """Get summary of MITRE mappings"""
+    try:
+        logs = get_logs()
+        summary = log_mitre_mapper.get_technique_summary(logs)
+        
+        # Add additional summary statistics
+        ip_mappings = log_mitre_mapper.get_ip_based_mappings(logs)
+        summary['unique_ips'] = len(ip_mappings)
+        summary['techniques_detected'] = len(summary['techniques_detected'])
+        
+        return jsonify(summary)
+        
+    except Exception as e:
+        print(f"[app] ERROR: Could not generate MITRE summary: {e}")
+        return jsonify({
+            'total_logs': 0,
+            'mapped_logs': 0,
+            'techniques_detected': {},
+            'ips_by_technique': {},
+            'framework_coverage': {'attack': [], 'car': [], 'd3fend': [], 'engage': []},
+            'unique_ips': 0,
+            'error': str(e)
+        }), 500
+
+
+@app.route("/api/mitre/mappings/ip/<ip>", methods=["GET"])
+def api_mitre_mappings_by_ip(ip):
+    """Get MITRE mappings for a specific IP address"""
+    try:
+        logs = get_logs()
+        ip_logs = [log for log in logs if log.get('ip') == ip]
+        
+        if not ip_logs:
+            return jsonify({
+                'ip': ip,
+                'mappings': [],
+                'message': 'No logs found for this IP address'
+            }), 404
+        
+        mappings = log_mitre_mapper.analyze_logs_batch(ip_logs)
+        
+        return jsonify({
+            'ip': ip,
+            'mappings': mappings,
+            'total_logs': len(ip_logs),
+            'mapped_logs': len([m for m in mappings if m['threat_type']])
+        })
+        
+    except Exception as e:
+        print(f"[app] ERROR: Could not get mappings for IP {ip}: {e}")
+        return jsonify({
+            'ip': ip,
+            'mappings': [],
+            'error': str(e)
+        }), 500
+
+
+@app.route("/api/mitre/mappings/technique/<technique_id>", methods=["GET"])
+def api_mitre_mappings_by_technique(technique_id):
+    """Get detailed information about a specific technique"""
+    try:
+        technique_details = log_mitre_mapper.get_technique_details(technique_id)
+        
+        if not technique_details.get('threat_type'):
+            return jsonify({
+                'technique_id': technique_id,
+                'message': 'Technique not found'
+            }), 404
+        
+        # Get all logs mapped to this technique
+        logs = get_logs()
+        mappings = log_mitre_mapper.analyze_logs_batch(logs)
+        
+        technique_mappings = []
+        for mapping in mappings:
+            if (mapping['mitre_attack'].get('technique_id') == technique_id or
+                mapping['mitre_car'].get('analytics_id') == technique_id or
+                mapping['mitre_d3fend'].get('defend_id') == technique_id or
+                mapping['mitre_engage'].get('engage_id') == technique_id):
+                technique_mappings.append(mapping)
+        
+        technique_details['mapped_logs'] = technique_mappings
+        technique_details['total_mappings'] = len(technique_mappings)
+        
+        return jsonify(technique_details)
+        
+    except Exception as e:
+        print(f"[app] ERROR: Could not get technique details for {technique_id}: {e}")
+        return jsonify({
+            'technique_id': technique_id,
+            'error': str(e)
+        }), 500
+
+
+@app.route("/api/mitre/mappings/export", methods=["GET"])
+def api_mitre_mappings_export():
+    """Export all MITRE mappings as JSON"""
+    try:
+        logs = get_logs()
+        mappings = log_mitre_mapper.analyze_logs_batch(logs)
+        summary = log_mitre_mapper.get_technique_summary(logs)
+        
+        export_data = {
+            'export_timestamp': datetime.now().isoformat(),
+            'summary': summary,
+            'mappings': mappings,
+            'framework_statistics': {
+                'attack': len(log_mitre_mapper.extract_unique_techniques(mappings)),
+                'car': len(log_mitre_mapper.extract_unique_analytics(mappings)),
+                'd3fend': len(log_mitre_mapper.extract_unique_defenses(mappings)),
+                'engage': len(log_mitre_mapper.extract_unique_engage_techniques(mappings))
+            }
+        }
+        
+        return jsonify(export_data)
+        
+    except Exception as e:
+        print(f"[app] ERROR: Could not export MITRE mappings: {e}")
+        return jsonify({
+            'error': str(e)
+        }), 500
+
+
+@app.route("/api/mitre/mappings/search", methods=["POST"])
+def api_mitre_mappings_search():
+    """Search MITRE mappings by various criteria"""
+    try:
+        body = request.get_json(force=True)
+        
+        if not body:
+            return jsonify({"error": "No search criteria provided"}), 400
+        
+        logs = get_logs()
+        mappings = log_mitre_mapper.analyze_logs_batch(logs)
+        
+        # Apply search filters
+        filtered_mappings = mappings
+        
+        # Filter by IP
+        if 'ip' in body:
+            filtered_mappings = [m for m in filtered_mappings 
+                               if m['ip_address'] == body['ip']]
+        
+        # Filter by technique ID
+        if 'technique_id' in body:
+            tid = body['technique_id']
+            filtered_mappings = [m for m in filtered_mappings 
+                               if (m['mitre_attack'].get('technique_id') == tid or
+                                   m['mitre_car'].get('analytics_id') == tid or
+                                   m['mitre_d3fend'].get('defend_id') == tid or
+                                   m['mitre_engage'].get('engage_id') == tid)]
+        
+        # Filter by threat type
+        if 'threat_type' in body:
+            filtered_mappings = [m for m in filtered_mappings 
+                               if m['threat_type'] == body['threat_type']]
+        
+        # Filter by severity
+        if 'severity' in body:
+            filtered_mappings = [m for m in filtered_mappings 
+                               if m['severity'] == body['severity']]
+        
+        # Filter by framework
+        if 'framework' in body:
+            framework = body['framework']
+            filtered_mappings = [m for m in filtered_mappings 
+                               if log_mitre_mapper.has_framework_mapping(m, framework)]
+        
+        # Filter by confidence threshold
+        if 'min_confidence' in body:
+            min_conf = body['min_confidence']
+            filtered_mappings = [m for m in filtered_mappings 
+                               if m['confidence'] >= min_conf]
+        
+        return jsonify({
+            'search_criteria': body,
+            'total_mappings': len(mappings),
+            'filtered_mappings': len(filtered_mappings),
+            'mappings': filtered_mappings
+        })
+        
+    except Exception as e:
+        print(f"[app] ERROR: Could not search MITRE mappings: {e}")
+        return jsonify({
+            'error': str(e)
+        }), 500
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

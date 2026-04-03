@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"/>
   <link rel="stylesheet" href="/static/style.css"/>
 </head>
 <body>
@@ -52,6 +53,23 @@
     </div>
     <div class="header-clock" id="headerClock">--:--:--</div>
   </div>
+  <div class="header-nav">
+    <a href="/" class="nav-link active">
+      <i class="fas fa-home"></i> Dashboard
+    </a>
+    <a href="/mitre-mapping" class="nav-link">
+      <i class="fas fa-project-diagram"></i> MITRE Mapping
+    </a>
+    <a href="/brute-force" class="nav-link">
+      <i class="fas fa-shield-alt"></i> Brute Force
+    </a>
+    <a href="/ai-chat" class="nav-link">
+      <i class="fas fa-robot"></i> AI Chat
+    </a>
+    <a href="/dashboard" class="nav-link">
+      <i class="fas fa-chart-line"></i> Analytics
+    </a>
+  </div>
 </header>
 
 <!-- ═══ ALERT BANNER ═══ -->
@@ -84,6 +102,21 @@
         <button class="pill-btn" onclick="setAlertFilter('MEDIUM',this)">MED</button>
       </div>
     </div>
+    
+    <!-- MITRE Framework Summary -->
+    <div class="mitre-summary" id="mitreSummary">
+      <div class="mitre-header">
+        <span class="mitre-title">🎯 MITRE FRAMEWORK COVERAGE</span>
+        <button class="refresh-btn" onclick="loadMITREMappings()" title="Refresh MITRE mappings">🔄</button>
+      </div>
+      <div class="mitre-content" id="mitreContent">
+        <div class="loading-state">
+          <div class="loading-dots"><span></span><span></span><span></span></div>
+          <span>Loading MITRE mappings…</span>
+        </div>
+      </div>
+    </div>
+    
     <div class="alert-feed" id="alertFeed">
       <div class="loading-state">
         <div class="loading-dots"><span></span><span></span><span></span></div>

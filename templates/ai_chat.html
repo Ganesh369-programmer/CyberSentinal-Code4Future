@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>NVIDIA AI Chat - CyberSentinel SOC Co-Pilot</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
+    
+    <!-- Matrix Background -->
+    <script src="/static/matrix.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-deep: #0a0f1e;
+            --bg-panel: rgba(10, 15, 30, 0.95);
+            --bg-input: rgba(0, 20, 40, 0.8);
+            --border: rgba(0, 255, 136, 0.3);
+            --green: #00ff88;
+            --blue: #00b4ff;
+            --nvidia-green: #76b900;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --mono: 'Courier New', monospace;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #matrixCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.03;
+        }
+
+        .chat-container {
+            display: flex;
+            height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        .sidebar {
+            width: 320px;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(10px);
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .nvidia-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        .nvidia-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--nvidia-green);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            font-size: 18px;
+        }
+
+        .nvidia-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--green);
+        }
+
+        .nvidia-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+
+        .chat-controls {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .control-section {
+            margin-bottom: 20px;
+        }
+
+        .control-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--green);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .control-btn {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        .control-btn:hover {
+            background: rgba(0, 255, 136, 0.1);
+            border-color: var(--green);
+            transform: translateY(-2px);
+        }
+
+        .control-btn i {
+            margin-right: 8px;
+            width: 16px;
+        }
+
+        .session-info {
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            line-height: 1.4;
+        }
+
+        .session-stat {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+        }
+
+        .stat-value {
+            color: var(--blue);
+            font-family: var(--mono);
+        }
+
+        .api-key-display {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .api-key-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .api-key-value {
+            font-family: var(--mono);
+            font-size: 0.9rem;
+            color: var(--nvidia-green);
+            background: rgba(0, 20, 40, 0.8);
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(118, 185, 0, 0.3);
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+
+        .api-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+
+        .api-status i {
+            font-size: 0.7rem;
+        }
+
+        .api-status.connected i {
+            color: var(--green);
+        }
+
+        .api-status.disconnected i {
+            color: var(--red);
+        }
+
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: rgba(0, 10, 20, 0.8);
+        }
+
+        .chat-header {
+            padding: 20px;
+            background: rgba(0, 255, 136, 0.05);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .chat-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--green);
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 15px 20px;
+            border-radius: 12px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 180, 255, 0.1));
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            background: rgba(0, 20, 40, 0.9);
+            border: 1px solid rgba(0, 180, 255, 0.3);
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+        }
+
+        .message.user .message-header {
+            justify-content: flex-end;
+        }
+
+        .message.assistant .message-header {
+            justify-content: flex-start;
+        }
+
+        .message-sender {
+            font-weight: 600;
+            color: var(--green);
+        }
+
+        .message.assistant .message-sender {
+            color: var(--nvidia-green);
+        }
+
+        .message-time {
+            color: var(--text-secondary);
+            font-family: var(--mono);
+            font-size: 0.75rem;
+        }
+
+        .message-content {
+            line-height: 1.5;
+            color: var(--text-primary);
+        }
+
+        .message.assistant .message-content {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .typing-indicator {
+            display: none;
+            align-self: flex-start;
+            padding: 15px 20px;
+            background: rgba(0, 20, 40, 0.9);
+            border: 1px solid rgba(0, 180, 255, 0.3);
+            border-radius: 12px;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--nvidia-green);
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            background: rgba(0, 10, 20, 0.9);
+            border-top: 1px solid var(--border);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 15px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            resize: none;
+            min-height: 50px;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--green);
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
+        }
+
+        .send-btn {
+            background: linear-gradient(135deg, var(--nvidia-green), var(--green));
+            border: none;
+            border-radius: 8px;
+            padding: 12px 20px;
+            color: var(--bg-deep);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Orbitron', monospace;
+            letter-spacing: 1px;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.3);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .quick-btn {
+            padding: 6px 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .quick-btn:hover {
+            background: rgba(0, 255, 136, 0.1);
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .chat-container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+            
+            .main-chat {
+                height: 60vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="matrixCanvas"></canvas>
+    
+    <div class="chat-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="nvidia-logo">
+                    <div class="nvidia-icon">N</div>
+                    <div>
+                        <div class="nvidia-title">NVIDIA AI</div>
+                        <div class="nvidia-subtitle">CyberSecurity Assistant</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-controls">
+                <div class="control-section">
+                    <div class="control-title">NVIDIA API Configuration</div>
+                    <div class="api-key-display" id="apiKeyDisplay">
+                        <div class="api-key-label">API Key Status:</div>
+                        <div class="api-key-value" id="apiKeyValue">Loading...</div>
+                        <button class="control-btn" onclick="toggleApiKeyVisibility()" id="toggleKeyBtn">
+                            <i class="fas fa-eye"></i> Show Key
+                        </button>
+                        <button class="control-btn" onclick="updateApiKey()">
+                            <i class="fas fa-edit"></i> Update Key
+                        </button>
+                    </div>
+                    <div class="api-status" id="apiStatus">
+                        <i class="fas fa-circle" id="apiStatusIcon"></i>
+                        <span id="apiStatusText">Checking...</span>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <div class="control-title">Session Controls</div>
+                    <button class="control-btn" onclick="clearChat()">
+                        <i class="fas fa-trash"></i> Clear Chat
+                    </button>
+                    <button class="control-btn" onclick="saveChat()">
+                        <i class="fas fa-save"></i> Save Conversation
+                    </button>
+                    <button class="control-btn" onclick="loadChat()">
+                        <i class="fas fa-folder-open"></i> Load Conversation
+                    </button>
+                </div>
+                
+                <div class="control-section">
+                    <div class="control-title">Session Info</div>
+                    <div class="session-info">
+                        <div class="session-stat">
+                            <span class="stat-label">Session ID:</span>
+                            <span class="stat-value" id="sessionId">Loading...</span>
+                        </div>
+                        <div class="session-stat">
+                            <span class="stat-label">Messages:</span>
+                            <span class="stat-value" id="messageCount">0</span>
+                        </div>
+                        <div class="session-stat">
+                            <span class="stat-label">Duration:</span>
+                            <span class="stat-value" id="sessionDuration">00:00:00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Main Chat Area -->
+        <main class="main-chat">
+            <header class="chat-header">
+                <div class="chat-title">
+                    <i class="fas fa-shield-alt"></i> CyberSentinel AI Security Analyst
+                </div>
+                <div class="status-indicator" id="statusIndicator"></div>
+            </header>
+            
+            <div class="chat-messages" id="chatMessages">
+                <div class="message assistant">
+                    <div class="message-header">
+                        <span class="message-sender">🤖 NVIDIA AI</span>
+                        <span class="message-time">Just now</span>
+                    </div>
+                    <div class="message-content">
+                        Hello! I'm your NVIDIA AI-powered CyberSecurity Assistant. I can help you with:
+                        <br><br>
+                        🔒 <strong>Security threat analysis</strong><br>
+                        🎯 <strong>MITRE ATT&CK mapping</strong><br>
+                        📊 <strong>Log interpretation</strong><br>
+                        🛡️ <strong>Incident response</strong><br>
+                        🤖 <strong>AI security recommendations</strong><br><br>
+                        Feel free to ask me anything about cybersecurity!
+                    </div>
+                </div>
+            </div>
+            
+            <div class="typing-indicator" id="typingIndicator">
+                <div class="typing-dots">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+            
+            <div class="chat-input-container">
+                <div class="input-wrapper">
+                    <textarea 
+                        class="chat-input" 
+                        id="chatInput" 
+                        placeholder="Ask me about cybersecurity threats, MITRE techniques, or security analysis..."
+                        rows="1"
+                        onkeydown="handleKeyPress(event)"
+                        oninput="autoResize(this)"></textarea>
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                        <i class="fas fa-paper-plane"></i> Send
+                    </button>
+                </div>
+                <div class="quick-actions">
+                    <button class="quick-btn" onclick="insertQuickText('Analyze the latest security logs for threats')">
+                        📊 Analyze Logs
+                    </button>
+                    <button class="quick-btn" onclick="insertQuickText('Show MITRE ATT&CK techniques for brute force attacks')">
+                        🎯 MITRE T1110
+                    </button>
+                    <button class="quick-btn" onclick="insertQuickText('Provide incident response recommendations')">
+                        🛡️ Incident Response
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let sessionId = 'Loading...';
+        let messageCount = 0;
+        let apiKeyVisible = false;
+        let currentApiKey = '';
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadChatHistory();
+            loadApiConfig();
+            updateSessionInfo();
+            document.getElementById('chatInput').focus();
+        });
+        
+        // Send message
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Add user message to UI
+            addMessage('user', message);
+            
+            // Clear input
+            input.value = '';
+            autoResize(input);
+            
+            // Disable send button
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Thinking...';
+            
+            // Show typing indicator
+            showTypingIndicator();
+            
+            try {
+                const response = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    hideTypingIndicator();
+                    addMessage('assistant', data.response);
+                    sessionId = data.session_id;
+                    updateSessionInfo();
+                } else {
+                    hideTypingIndicator();
+                    addMessage('assistant', 'Sorry, I encountered an error. Please try again.');
+                }
+            } catch (error) {
+                hideTypingIndicator();
+                addMessage('assistant', 'Connection error. Please check your network and try again.');
+            }
+            
+            // Re-enable send button
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+        }
+        
+        // Add message to chat
+        function addMessage(type, content) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <span class="message-sender">${type === 'user' ? '🧑 You' : '🤖 NVIDIA AI'}</span>
+                    <span class="message-time">${time}</span>
+                </div>
+                <div class="message-content">${content}</div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            messageCount++;
+            updateSessionInfo();
+        }
+        
+        // Typing indicator
+        function showTypingIndicator() {
+            document.getElementById('typingIndicator').style.display = 'block';
+        }
+        
+        function hideTypingIndicator() {
+            document.getElementById('typingIndicator').style.display = 'none';
+        }
+        
+        // Auto-resize textarea
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
+        
+        // Handle key press
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        // Update session info
+        function updateSessionInfo() {
+            document.getElementById('sessionId').textContent = sessionId;
+            document.getElementById('messageCount').textContent = messageCount;
+        }
+        
+        // Clear chat
+        async function clearChat() {
+            if (confirm('Are you sure you want to clear the entire conversation?')) {
+                try {
+                    const response = await fetch('/api/ai/chat/clear', { method: 'POST' });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        document.getElementById('chatMessages').innerHTML = '';
+                        messageCount = 0;
+                        updateSessionInfo();
+                    }
+                } catch (error) {
+                    alert('Failed to clear chat: ' + error.message);
+                }
+            }
+        }
+        
+        // Save chat
+        async function saveChat() {
+            try {
+                const response = await fetch('/api/ai/chat/save', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Conversation saved successfully!');
+                } else {
+                    alert('Failed to save: ' + data.error);
+                }
+            } catch (error) {
+                alert('Save failed: ' + error.message);
+            }
+        }
+        
+        // Load chat
+        async function loadChat() {
+            try {
+                const response = await fetch('/api/ai/chat/load', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                
+                if (data.success && data.conversations.length > 0) {
+                    const conversation = prompt('Available conversations:\n' + data.conversations.join('\n') + '\nEnter conversation name to load:');
+                    
+                    if (conversation) {
+                        const loadResponse = await fetch('/api/ai/chat/load', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ filepath: conversation })
+                        });
+                        const loadData = await loadResponse.json();
+                        
+                        if (loadData.success) {
+                            location.reload(); // Reload to show loaded conversation
+                        }
+                    }
+                } else {
+                    alert('No saved conversations found.');
+                }
+            } catch (error) {
+                alert('Load failed: ' + error.message);
+            }
+        }
+        
+        // Load API configuration
+        async function loadApiConfig() {
+            try {
+                const response = await fetch('/ai/api/ai/config');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const config = data.config;
+                    currentApiKey = config.api_key;
+                    
+                    // Initially hide the API key
+                    updateApiKeyDisplay(false);
+                    
+                    const statusDiv = document.getElementById('apiStatus');
+                    const statusIcon = document.getElementById('apiStatusIcon');
+                    const statusText = document.getElementById('apiStatusText');
+                    
+                    if (config.has_key) {
+                        statusDiv.className = 'api-status connected';
+                        statusIcon.className = 'fas fa-circle';
+                        statusText.textContent = 'Connected';
+                    } else {
+                        statusDiv.className = 'api-status disconnected';
+                        statusIcon.className = 'fas fa-circle';
+                        statusText.textContent = 'No Key';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load API config:', error);
+                document.getElementById('apiKeyValue').textContent = 'Error loading';
+            }
+        }
+        
+        // Toggle API key visibility
+        function toggleApiKeyVisibility() {
+            apiKeyVisible = !apiKeyVisible;
+            updateApiKeyDisplay(apiKeyVisible);
+            
+            const toggleBtn = document.getElementById('toggleKeyBtn');
+            const icon = toggleBtn.querySelector('i');
+            
+            if (apiKeyVisible) {
+                icon.className = 'fas fa-eye-slash';
+                toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Key';
+            } else {
+                icon.className = 'fas fa-eye';
+                toggleBtn.innerHTML = '<i class="fas fa-eye"></i> Show Key';
+            }
+        }
+        
+        // Update API key display
+        function updateApiKeyDisplay(show) {
+            const keyElement = document.getElementById('apiKeyValue');
+            
+            if (show && currentApiKey) {
+                // Show full key temporarily
+                keyElement.textContent = currentApiKey;
+                keyElement.style.color = '#ff6b6b';
+                keyElement.style.borderColor = '#ff6b6b';
+            } else {
+                // Hide/mask the key
+                if (currentApiKey && currentApiKey.length > 0) {
+                    keyElement.textContent = '•'.repeat(Math.min(currentApiKey.length, 20));
+                    keyElement.style.color = 'var(--nvidia-green)';
+                    keyElement.style.borderColor = 'rgba(118, 185, 0, 0.3)';
+                } else {
+                    keyElement.textContent = 'No API Key';
+                    keyElement.style.color = 'var(--text-secondary)';
+                    keyElement.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                }
+            }
+        }
+        
+        // Update API key
+        async function updateApiKey() {
+            const newKey = prompt('Enter your NVIDIA API key:', '');
+            if (newKey && newKey.trim()) {
+                try {
+                    const response = await fetch('/ai/api/ai/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ api_key: newKey.trim() })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        alert('API key updated successfully!');
+                        loadApiConfig(); // Reload the display
+                    } else {
+                        alert('Failed to update API key: ' + data.error);
+                    }
+                } catch (error) {
+                    alert('Error updating API key: ' + error.message);
+                }
+            }
+        }
+        
+        // Load chat history
+        async function loadChatHistory() {
+            try {
+                const response = await fetch('/api/ai/chat/history');
+                const data = await response.json();
+                
+                if (data.success) {
+                    sessionId = data.session_id;
+                    messageCount = data.stats.total_messages;
+                    
+                    // Load existing messages
+                    const messagesContainer = document.getElementById('chatMessages');
+                    messagesContainer.innerHTML = '';
+                    
+                    data.history.forEach(msg => {
+                        if (msg.role !== 'system') {
+                            const type = msg.role === 'user' ? 'user' : 'assistant';
+                            const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            
+                            const messageDiv = document.createElement('div');
+                            messageDiv.className = `message ${type}`;
+                            messageDiv.innerHTML = `
+                                <div class="message-header">
+                                    <span class="message-sender">${type === 'user' ? '🧑 You' : '🤖 NVIDIA AI'}</span>
+                                    <span class="message-time">${time}</span>
+                                </div>
+                                <div class="message-content">${msg.content}</div>
+                            `;
+                            
+                            messagesContainer.appendChild(messageDiv);
+                        }
+                    });
+                    
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+            } catch (error) {
+                console.error('Failed to load chat history:', error);
+            }
+        }
+        
+        // Quick text insertion
+        function insertQuickText(text) {
+            const input = document.getElementById('chatInput');
+            input.value = text;
+            input.focus();
+            autoResize(input);
+        }
+    </script>
+</body>
+</html>

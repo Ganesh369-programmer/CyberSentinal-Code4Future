@@ -1,9 +1,9 @@
 /* ══════════════════════════════════════════════════
-   CYBERSENTINEL — BACKEND-CONNECTED DASHBOARD JS
-   All data comes from Flask API at /api/*
+   CYBERSENTINEL — script.js
+   index.html AI chat  →  POST /ai/chat  →  NVIDIA
    ══════════════════════════════════════════════════ */
 
-const API = "";   // same origin — Flask serves both HTML and API
+const API = "";  // same origin as Flask
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let allAlerts   = [];
@@ -12,53 +12,71 @@ let alertFilter = "all";
 let logFilter   = "all";
 let logSearch   = "";
 let suspiciousIPs = new Set();
-let pollTimer   = null;
-let logTimer    = null;
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// Session ID stored in localStorage so conversation memory persists across
+// page refreshes (same browser tab = same session = same NVIDIA history)
+let AI_SESSION_ID = localStorage.getItem("cs_ai_sid") || (() => {
+  const id = "sid_" + Math.random().toString(36).slice(2, 10);
+  localStorage.setItem("cs_ai_sid", id);
+  return id;
+})();
+
+// ── Boot ───────────────────────────────────────────────────────────────────────
 window.addEventListener("DOMContentLoaded", async () => {
   initMatrix();
   startClock();
-  await bootSequence();
-  pollTimer = setInterval(refreshAlerts, 15000);   // refresh alerts every 15s
-  logTimer = setInterval(loadLogs, 5000);      // refresh logs every 5s
-});
 
-async function bootSequence() {
   appendBotMessage(
     `🖥️ <strong>CyberSentinel SOC Co-Pilot initializing…</strong><br><br>` +
-    `Connecting to Flask backend at <span style="color:var(--blue)">localhost:5000</span>…`,
+    `Connecting to backend · Loading auth logs · Initializing NVIDIA AI…`,
     "system"
   );
 
   const health = await fetchJSON("/api/health");
   if (!health) {
     setStatus(false);
-    appendBotMessage("⛔ Backend connection failed. Make sure Flask is running: <code>python app.py</code>", "error");
+    appendBotMessage(
+      "⛔ Flask backend is not responding.<br>" +
+      "<code>python app.py</code> — then refresh.",
+      "error"
+    );
     return;
   }
 
   setStatus(true);
-  await Promise.all([loadAlerts(), loadLogs()]);
+  await Promise.all([loadAlerts(), loadLogs(), loadMITREMappings()]);
+
+  // Greet with live data from /ai/stats
+  const aiStats = await fetchJSON("/ai/stats");
+  const total   = aiStats ? aiStats.total    : allLogs.length;
+  const fails   = aiStats ? aiStats.failures : 0;
+  const suspCnt = aiStats ? aiStats.suspicious_ips.length : 0;
 
   appendBotMessage(
-    `✅ <strong>Backend connected.</strong><br><br>` +
-    `Loaded <span style="color:var(--blue)">${allLogs.length} authentication events</span> from login.html.<br><br>` +
-    `Type a natural language query or click a chip below.`,
-    "llama3"
+    `✅ <strong>Backend connected · NVIDIA AI ready.</strong><br><br>` +
+    `Monitoring <span style="color:var(--blue)">${total} auth events</span> · ` +
+    `<span style="color:var(--red)">${fails} failures</span> · ` +
+    `<span style="color:var(--orange)">${suspCnt} suspicious IPs</span>.<br><br>` +
+    `Ask me anything about the security logs — I answer from real data.`,
+    "nvidia_llama4"
   );
 
+  // Auto-alert on threats
   if (allAlerts.length > 0) {
     const top = allAlerts[0];
-    setTimeout(() => showAlert(
-      `${top.effective_severity} threat: ${top.type.replace(/_/g," ").toUpperCase()} from ${top.src_ip}`
-    ), 1000);
+    setTimeout(() =>
+      showAlert(`${top.effective_severity} threat: ${top.type.replace(/_/g," ").toUpperCase()} from ${top.src_ip}`)
+    , 1000);
   }
-}
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// API FETCHERS
-// ═══════════════════════════════════════════════════════════════════════════════
+  // Polling
+  setInterval(refreshAlerts, 15000);
+  setInterval(loadLogs,       5000);
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// FETCH HELPER
+// ═════════════════════════════════════════════════════════════════════════════
 
 async function fetchJSON(url, options = {}) {
   try {
@@ -66,30 +84,31 @@ async function fetchJSON(url, options = {}) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (e) {
-    console.error(`[API] ${url}`, e.message);
+    console.error(`[fetch] ${url}:`, e.message);
     return null;
   }
 }
 
-// ── Load & render alerts ──────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// ALERT FEED  (/api/alerts)
+// ═════════════════════════════════════════════════════════════════════════════
+
 async function loadAlerts() {
   const data = await fetchJSON("/api/alerts");
   if (!data) return;
 
-  allAlerts = data.alerts || [];
+  allAlerts     = data.alerts || [];
   suspiciousIPs = new Set(allAlerts.map(a => a.src_ip));
 
-  // Header stats
   const sc = data.severity_counts || {};
   animCount("hs-critical", sc.CRITICAL || 0);
   animCount("hs-high",     sc.HIGH     || 0);
-  animCount("hs-events",   allLogs.length || 0);
 
-  // Metric cards (top of panel 2) - Focus on authentication logs
-  el("mc-threats").textContent = allLogs.length;  // Use auth logs instead of alerts
-  el("mc-ips").textContent     = [...new Set(allLogs.map(l => l.ip))].length;  // IPs from auth logs
-  animBar("mc-threats-bar", Math.min(100, allLogs.length * 15));
-  animBar("mc-ips-bar",     Math.min(100, [...new Set(allLogs.map(l => l.ip))].length * 20));
+  // Metric cards
+  el("mc-threats").textContent = allAlerts.length;
+  el("mc-ips").textContent     = suspiciousIPs.size;
+  animBar("mc-threats-bar", Math.min(100, allAlerts.length * 12));
+  animBar("mc-ips-bar",     Math.min(100, suspiciousIPs.size * 20));
 
   renderAlertFeed();
   populateIPSelect();
@@ -100,30 +119,10 @@ async function refreshAlerts() {
   await loadAlerts();
   if (allAlerts.length > prev) {
     const newest = allAlerts[0];
-    flashNewAlert(newest);
-    showAlert(`New threat detected: ${newest.type.replace(/_/g," ").toUpperCase()} from ${newest.src_ip}`);
+    document.querySelectorAll(".alert-card")[0]?.classList.add("new-alert");
+    showAlert(`New threat: ${newest.type.replace(/_/g," ").toUpperCase()} from ${newest.src_ip}`);
   }
 }
-
-// ── Load & render logs ────────────────────────────────────────────────────────
-async function loadLogs() {
-  const data = await fetchJSON("/api/auth/logs");
-  if (!data) return;
-
-  allLogs = data.logs || [];
-  el("mc-total").textContent = allLogs.length;
-
-  const failures = allLogs.filter(l => l.status === "failure").length;
-  el("mc-fail").textContent = failures;
-  animBar("mc-fail-bar", Math.round((failures / allLogs.length) * 100));
-
-  animCount("hs-events", allLogs.length);
-  renderLogTable();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ALERT FEED RENDERING
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function setAlertFilter(f, btn) {
   alertFilter = f;
@@ -134,21 +133,18 @@ function setAlertFilter(f, btn) {
 
 function renderAlertFeed() {
   const feed = el("alertFeed");
-  let filtered = alertFilter === "all"
+  const list = alertFilter === "all"
     ? allAlerts
     : allAlerts.filter(a => a.effective_severity === alertFilter);
 
-  if (!filtered.length) {
-    feed.innerHTML = `<div class="empty-state">✅ No alerts match this filter.<br>System appears clean.</div>`;
+  if (!list.length) {
+    feed.innerHTML = `<div class="empty-state">✅ No alerts for this filter.<br>System appears clean.</div>`;
     return;
   }
 
-  feed.innerHTML = filtered.map((a, i) => {
-    const mitreBadge = a.mitre
-      ? `<div class="mitre-badge">⬡ ${a.mitre.id} — ${a.mitre.name}</div>` : "";
-    const corr = a.correlated_threats && a.correlated_threats.length
-      ? `<span class="badge scan">+${a.correlated_threats.length} correlated</span> ` : "";
-
+  feed.innerHTML = list.map(a => {
+    const mb = a.mitre ? `<div class="mitre-badge">⬡ ${a.mitre.id} — ${a.mitre.name}</div>` : "";
+    const cb = a.car ? `<div class="car-badge">🔬 ${a.car.id} — ${a.car.name}</div>` : "";
     return `
       <div class="alert-card ${a.effective_severity}" onclick="investigateIP('${a.src_ip}')">
         <div class="alert-top">
@@ -161,7 +157,8 @@ function renderAlertFeed() {
           <span>Score: ${a.correlation_score || 0}</span>
           ${a.cross_source_hit ? '<span style="color:var(--orange)">MULTI-SOURCE</span>' : ""}
         </div>
-        ${mitreBadge}
+        ${mb}
+        ${cb}
         <div class="alert-actions">
           <button class="action-btn" onclick="event.stopPropagation();investigateIP('${a.src_ip}')">🔍 Investigate</button>
           <button class="action-btn" onclick="event.stopPropagation();loadTimeline('${a.src_ip}')">📊 Timeline</button>
@@ -171,18 +168,28 @@ function renderAlertFeed() {
   }).join("");
 }
 
-function flashNewAlert(alert) {
-  const cards = document.querySelectorAll(".alert-card");
-  if (cards.length > 0) cards[0].classList.add("new-alert");
-}
+// ═════════════════════════════════════════════════════════════════════════════
+// LOG TABLE  (/api/auth/logs)
+// ═════════════════════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// LOG TABLE RENDERING
-// ═══════════════════════════════════════════════════════════════════════════════
+async function loadLogs() {
+  const data = await fetchJSON("/api/auth/logs");
+  if (!data) return;
+
+  allLogs = data.logs || [];
+  el("mc-total").textContent = allLogs.length;
+  animCount("hs-events", allLogs.length);
+
+  const fails = allLogs.filter(l => l.status === "failure").length;
+  el("mc-fail").textContent = fails;
+  animBar("mc-fail-bar", allLogs.length ? Math.round(fails / allLogs.length * 100) : 0);
+
+  renderLogTable();
+}
 
 function filterLogs(mode) {
   logFilter = mode;
-  el("toggleAll").classList.toggle("active", mode === "all");
+  el("toggleAll").classList.toggle("active",    mode === "all");
   el("toggleThreats").classList.toggle("active", mode === "threats");
   renderLogTable();
 }
@@ -200,35 +207,37 @@ function renderLogTable() {
 
   if (logSearch) {
     data = data.filter(l =>
-      (l.user || "").toLowerCase().includes(logSearch) ||
-      (l.ip || "").includes(logSearch) ||
+      (l.user   || "").toLowerCase().includes(logSearch) ||
+      (l.ip     || "").includes(logSearch) ||
       (l.timestamp || "").includes(logSearch) ||
       (l.status || "").includes(logSearch) ||
-      (l.source || "").includes(logSearch)
+      (l.source || "").toLowerCase().includes(logSearch)
     );
   }
 
   if (!data.length) {
-    body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:20px;font-family:var(--mono);font-size:10px">No logs match</td></tr>`;
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:18px;font-family:var(--mono);font-size:10px">No logs match</td></tr>`;
     return;
   }
 
   body.innerHTML = data.map(l => {
     const susp = suspiciousIPs.has(l.ip);
     const time = (l.timestamp || "").split(" ")[1] || l.timestamp || "?";
+    const st   = l.status === "success" ? "success" : l.status === "scan" ? "scan" : "failure";
+    const stL  = l.status === "success" ? "OK" : l.status === "scan" ? "SCAN" : "FAIL";
     return `<tr class="${susp ? "suspicious" : ""}">
       <td class="td-time">${time}</td>
       <td class="td-src">${l.source || "?"}</td>
       <td class="td-user">${l.user || "N/A"}</td>
       <td class="td-ip">${l.ip || "?"}</td>
-      <td><span class="badge ${l.status === "success" ? "success" : l.status === "scan" ? "scan" : "failure"}">${l.status === "success" ? "OK" : l.status === "scan" ? "SCAN" : "FAIL"}</span></td>
+      <td><span class="badge ${st}">${stL}</span></td>
     </tr>`;
   }).join("");
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// TIMELINE
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+// TIMELINE  (/api/timeline/<ip>)
+// ═════════════════════════════════════════════════════════════════════════════
 
 function populateIPSelect() {
   const sel = el("ipSelect");
@@ -248,10 +257,9 @@ async function loadTimeline(ip) {
     return;
   }
 
-  const events = data.timeline || [];
   el("timelineWrap").innerHTML = `
     <div class="timeline-narrative">${data.narrative || ""}</div>
-    ${events.map(e => `
+    ${(data.timeline || []).map(e => `
       <div class="tl-event">
         <span class="tl-time">${(e.timestamp||"").split(" ")[1]||""}</span>
         <div class="tl-dot ${e.category}"></div>
@@ -262,31 +270,31 @@ async function loadTimeline(ip) {
       </div>`).join("")}`;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SOAR: BLOCK IP
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+// SOAR: BLOCK IP  (/api/block-ip)
+// ═════════════════════════════════════════════════════════════════════════════
 
 async function blockIP(ip) {
   const data = await fetchJSON("/api/block-ip", {
-    method: "POST",
+    method:  "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ip }),
+    body:    JSON.stringify({ ip }),
   });
   if (!data) return;
 
   appendBotMessage(
-    `🚫 <strong>SOAR Action Executed</strong><br><br>` +
+    `🚫 <strong>SOAR — Block IP</strong><br><br>` +
     `IP <span style="color:var(--red)">${ip}</span> flagged for blocking.<br>` +
-    `<span style="color:var(--t3)">Status: ${data.status}</span><br>` +
-    `<code style="color:var(--t2);font-size:10px">${data.command}</code>`,
+    `Status: <span style="color:var(--t2)">${data.status}</span><br>` +
+    `<code style="color:var(--t3);font-size:9px">${data.command}</code>`,
     "soar"
   );
-  showAlert(`SOAR: IP ${ip} block action triggered (simulated).`);
+  showAlert(`SOAR: IP ${ip} block triggered (simulated).`);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// INVESTIGATION MODAL
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+// INVESTIGATE MODAL  (/api/investigate)
+// ═════════════════════════════════════════════════════════════════════════════
 
 async function investigateIP(ip) {
   el("investigateModal").classList.remove("hidden");
@@ -294,23 +302,21 @@ async function investigateIP(ip) {
   el("modalBody").innerHTML = `<div class="loading-state"><div class="loading-dots"><span></span><span></span><span></span></div><span>Investigating ${ip}…</span></div>`;
 
   const data = await fetchJSON("/api/investigate", {
-    method: "POST",
+    method:  "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ip }),
+    body:    JSON.stringify({ ip }),
   });
 
   if (!data) {
-    el("modalBody").innerHTML = `<div class="empty-state">Failed to load investigation for ${ip}.</div>`;
+    el("modalBody").innerHTML = `<div class="empty-state">Failed to load report for ${ip}.</div>`;
     return;
   }
 
   const playbooks = (data.playbooks || []).slice(0, 1);
-  const explanation = data.explanations && data.explanations[0];
-  const mitre = (data.mitre || []).slice(0, 2);
-  const evidence = data.alerts && data.alerts[0] ? data.alerts[0].evidence || [] : [];
+  const mitre     = (data.mitre     || []).slice(0, 2);
+  const evidence  = data.alerts && data.alerts[0] ? (data.alerts[0].evidence || []) : [];
 
   el("modalBody").innerHTML = `
-    <!-- Summary -->
     <div class="modal-section">
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
         <div class="risk-score"><span class="risk-label">RISK</span> ${data.risk_score || 0}</div>
@@ -318,52 +324,32 @@ async function investigateIP(ip) {
       </div>
       <div class="modal-narrative">${data.summary || "No summary available."}</div>
     </div>
-
-    ${explanation ? `
-    <!-- AI Explanation -->
-    <div class="modal-section">
-      <div class="modal-section-title">AI ANALYSIS (${explanation.source || "llama3"})</div>
-      <div class="llm-explanation">${(explanation.answer || "").replace(/\n/g,"<br>")}</div>
-      ${(explanation.warnings||[]).map(w=>`<div class="msg-warning">⚠ ${w}</div>`).join("")}
-    </div>` : ""}
-
     ${mitre.length ? `
-    <!-- MITRE -->
     <div class="modal-section">
-      <div class="modal-section-title">MITRE ATT&CK MAPPING</div>
-      ${mitre.map(m=>`
-        <div class="playbook-step">
-          <div class="step-num">${m.technique_id}</div>
-          <div class="step-info">
-            <div class="step-action">${m.technique_name}</div>
-            <div class="step-desc">${m.tactic} · Severity: ${m.severity}</div>
-            <div class="step-desc">${(m.description||"").slice(0,150)}…</div>
-          </div>
-        </div>`).join("")}
+      <div class="modal-section-title">MITRE ATT&CK</div>
+      ${mitre.map(m=>`<div class="playbook-step">
+        <div class="step-num">${m.technique_id}</div>
+        <div class="step-info">
+          <div class="step-action">${m.technique_name}</div>
+          <div class="step-desc">${m.tactic} · ${m.severity}</div>
+        </div></div>`).join("")}
     </div>` : ""}
-
     ${evidence.length ? `
-    <!-- Evidence -->
     <div class="modal-section">
-      <div class="modal-section-title">EVIDENCE (${evidence.length} log entries)</div>
+      <div class="modal-section-title">EVIDENCE</div>
       ${evidence.map(e=>`<div class="evidence-line">▸ ${e}</div>`).join("")}
     </div>` : ""}
-
     ${playbooks.length ? `
-    <!-- SOAR Playbook -->
     <div class="modal-section">
-      <div class="modal-section-title">SOAR RESPONSE PLAYBOOK — ${playbooks[0].name||""}</div>
-      ${(playbooks[0].steps||[]).map((s,i)=>`
-        <div class="playbook-step">
-          <div class="step-num">${i+1}</div>
-          <div class="step-info">
-            <div class="step-action">[${s.action}]</div>
-            <div class="step-desc">${s.description}</div>
-            <div class="step-cmd">${s.command||""}</div>
-          </div>
-        </div>`).join("")}
+      <div class="modal-section-title">SOAR PLAYBOOK — ${playbooks[0].name||""}</div>
+      ${(playbooks[0].steps||[]).map((s,i)=>`<div class="playbook-step">
+        <div class="step-num">${i+1}</div>
+        <div class="step-info">
+          <div class="step-action">[${s.action}]</div>
+          <div class="step-desc">${s.description}</div>
+          <div class="step-cmd">${s.command||""}</div>
+        </div></div>`).join("")}
     </div>` : ""}
-
     <div style="text-align:center;padding-top:10px">
       <button class="action-btn danger" onclick="blockIP('${ip}');closeModal()">🚫 Block This IP</button>
     </div>`;
@@ -374,11 +360,23 @@ function closeModal() {
   el("modalBackdrop").classList.add("hidden");
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// AI CHAT — connected to /api/query
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const chatMessages = el_lazy("chatMessages");
+// ═════════════════════════════════════════════════════════════════════════════
+// ██████████████████████  AI CHAT  ████████████████████████████████████████████
+//
+//  FULL FLOW:
+//  User types in index.html → handleSend() runs →
+//  POST /ai/chat with { query, session_id } →
+//  Flask → nvidia_ai/ai_chat_interface.py → nvidia_chat.py →
+//    1. loads real_json/auth_logs.json
+//    2. computes stats (failures, suspicious IPs, etc.)
+//    3. builds grounded system prompt with live log data
+//    4. sends [system_prompt + conversation history + user query] to NVIDIA
+//    5. NVIDIA Llama-4 answers based on actual log data
+//    6. hallucination guard checks invented IPs
+//  → returns { answer, source, warnings, stats_snapshot } →
+//  handleSend() renders answer in chat bubble
+//
+// ═════════════════════════════════════════════════════════════════════════════
 
 function sendChip(q) {
   el("chatInput").value = q;
@@ -390,128 +388,157 @@ async function handleSend() {
   const raw   = input.value.trim();
   if (!raw) return;
 
+  // Show user bubble immediately
   appendUserMessage(raw);
   input.value = "";
   input.focus();
 
+  // Show typing dots while waiting for NVIDIA
   const typingId = showTyping();
 
-  const data = await fetchJSON("/api/query", {
-    method: "POST",
+  // ── POST to /ai/chat ─────────────────────────────────────────────────────
+  // This goes to: nvidia_ai/ai_chat_interface.py → nvidia_chat.py → NVIDIA API
+  const data = await fetchJSON("/ai/chat", {
+    method:  "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: raw }),
+    body:    JSON.stringify({
+      query:      raw,
+      session_id: AI_SESSION_ID,   // keeps conversation memory across messages
+    }),
   });
 
   removeTyping(typingId);
 
+  // ── Handle response ───────────────────────────────────────────────────────
   if (!data) {
-    appendBotMessage("⛔ Backend unreachable. Check that Flask is running.", "error");
+    appendBotMessage(
+      "⛔ Could not reach the AI backend.<br>" +
+      "Check Flask is running and <code>nvidia_ai/ai_chat_interface.py</code> is registered.",
+      "error"
+    );
     return;
   }
 
-  // Update AI source badge
-  el("aiSourceTag").textContent = data.source === "llama3"
-    ? "LLAMA3 · GROUNDED" : data.source === "keyword_fallback"
-    ? "KEYWORD MODE" : data.source === "soar" ? "SOAR ENGINE" : "NLP ENGINE";
-
-  let html = data.answer ? data.answer.replace(/\n/g, "<br>") : "No response.";
-
-  // Render data tables inline
-  if (data.type === "log_filter" && data.data && data.data.length) {
-    html += buildChatTable(
-      ["TIMESTAMP","SOURCE","USER","IP ADDRESS","STATUS"],
-      data.data.map(l => [
-        l.timestamp, l.source, l.user||"N/A", l.ip,
-        `<span class="badge ${l.status==="success"?"success":l.status==="scan"?"scan":"failure"}">${l.status.toUpperCase()}</span>`
-      ]),
-      data.data.map(l => suspiciousIPs.has(l.ip))
-    );
+  // Update session if server assigned a new one
+  if (data.session_id) {
+    AI_SESSION_ID = data.session_id;
+    localStorage.setItem("cs_ai_sid", AI_SESSION_ID);
   }
 
-  if (data.type === "threat_list" && data.data && data.data.length) {
-    html += buildChatTable(
-      ["IP","TYPE","SEVERITY","MITRE"],
-      data.data.slice(0,6).map(a => [
-        a.src_ip,
-        a.type.replace(/_/g," "),
-        `<span class="badge ${a.effective_severity==="CRITICAL"||a.effective_severity==="HIGH"?"failure":a.effective_severity==="MEDIUM"?"scan":"success"}">${a.effective_severity}</span>`,
-        a.mitre ? a.mitre.id : "?"
-      ]),
-      data.data.map(() => true)
-    );
+  // ── Update the AI source badge in panel header ────────────────────────────
+  const sourceMap = {
+    "nvidia_llama4":    "NVIDIA · LLAMA-4",
+    "keyword_fallback": "OFFLINE MODE",
+    "security_guard":   "⛔ BLOCKED",
+    "error":            "ERROR",
+  };
+  const badge = el("aiSourceTag");
+  if (badge) {
+    badge.textContent = sourceMap[data.source] || "AI ENGINE";
+    badge.style.color =
+      data.source === "nvidia_llama4"    ? "var(--green)"  :
+      data.source === "keyword_fallback" ? "var(--orange)" : "var(--red)";
   }
 
-  if (data.type === "mitre_list" && data.data) {
-    html += buildChatTable(
-      ["ID","TECHNIQUE","TACTIC","SEVERITY"],
-      data.data.map(m => [m.technique_id, m.technique_name, m.tactic, m.severity]),
-      []
-    );
+  // ── Format answer (markdown-lite) ─────────────────────────────────────────
+  let html = (data.answer || "No response.")
+    .replace(/\*\*(.*?)\*\*/g,  "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g,      "<em>$1</em>")
+    .replace(/^• /gm,           "▸ ")
+    .replace(/\n/g,             "<br>");
+
+  // ── Hallucination / safety warnings ───────────────────────────────────────
+  if (data.warnings && data.warnings.length) {
+    html += `<div class="ai-warn-box">${data.warnings.map(w => `⚠ ${w}`).join("<br>")}</div>`;
   }
 
-  if (data.type === "soar_action" && data.data && data.data.steps) {
-    html += "<br>" + data.data.steps.map((s,i) =>
-      `<div style="font-size:10px;color:var(--t2);padding:2px 0">${i+1}. [${s.action}] ${s.description.slice(0,80)}</div>`
-    ).join("");
+  // ── Live stats footer (from stats_snapshot) ────────────────────────────────
+  const snap = data.stats_snapshot || {};
+  if (snap.total) {
+    html +=
+      `<div class="ai-stats-snap">` +
+      `<span>📊 ${snap.total} events</span>` +
+      `<span>🔴 ${snap.failures} failures</span>` +
+      `<span>⚠ ${(snap.suspicious_ips||[]).length} suspicious IPs</span>` +
+      `</div>`;
+
+    // Also update dashboard metric cards silently
+    const safeSet = (id, v) => { const e = el(id); if (e) e.textContent = v; };
+    safeSet("mc-total", snap.total);
+    safeSet("mc-fail",  snap.failures);
+    if (snap.total) animBar("mc-fail-bar", Math.round(snap.failures / snap.total * 100));
   }
 
-  appendBotMessage(html, data.source, data.warnings);
+  appendBotMessage(html, data.source);
 }
 
-el("chatInput").addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+// Enter key sends message
+document.addEventListener("DOMContentLoaded", () => {
+  const inp = el("chatInput");
+  if (inp) {
+    inp.addEventListener("keydown", e => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    });
+  }
 });
 
-// ── Chat helpers ──────────────────────────────────────────────────────────────
+// ── Chat render helpers ────────────────────────────────────────────────────────
+
 function appendUserMessage(text) {
   const msgs = el("chatMessages");
-  const div  = document.createElement("div");
-  div.className = "msg user";
-  div.innerHTML = `
+  const d = document.createElement("div");
+  d.className = "msg user";
+  d.innerHTML = `
     <div class="msg-avatar">⬟</div>
     <div class="msg-content">
       <div class="msg-meta">OPERATOR · ${fmtTime()}</div>
       <div class="msg-bubble">${escapeHTML(text)}</div>
     </div>`;
-  msgs.appendChild(div);
+  msgs.appendChild(d);
   msgs.scrollTop = msgs.scrollHeight;
 }
 
-function appendBotMessage(html, source = "system", warnings = []) {
+function appendBotMessage(html, source = "system") {
   const msgs = el("chatMessages");
-  const div  = document.createElement("div");
-  div.className = "msg bot";
-  const src  = source ? `<div class="msg-source">◈ ${source.toUpperCase()}</div>` : "";
-  const warn = warnings && warnings.length
-    ? warnings.map(w => `<div class="msg-warning">⚠ ${w}</div>`).join("") : "";
-  div.innerHTML = `
+  const d = document.createElement("div");
+  d.className = "msg bot";
+  const srcLabel = {
+    "nvidia_llama4":    "NVIDIA · LLAMA-4",
+    "keyword_fallback": "OFFLINE",
+    "security_guard":   "BLOCKED",
+    "soar":             "SOAR ENGINE",
+    "system":           "SYSTEM",
+    "error":            "ERROR",
+  }[source] || source.toUpperCase();
+
+  d.innerHTML = `
     <div class="msg-avatar">⬡</div>
     <div class="msg-content">
       <div class="msg-meta">SENTINEL-AI · ${fmtTime()}</div>
       <div class="msg-bubble">${html}</div>
-      ${src}${warn}
+      <div class="msg-source">◈ ${srcLabel}</div>
     </div>`;
-  msgs.appendChild(div);
+  msgs.appendChild(d);
   msgs.scrollTop = msgs.scrollHeight;
 }
 
 function showTyping() {
   const msgs = el("chatMessages");
   const id   = "typing_" + Date.now();
-  const div  = document.createElement("div");
-  div.className = "msg bot";
-  div.id = id;
-  div.innerHTML = `
+  const d    = document.createElement("div");
+  d.className = "msg bot";
+  d.id = id;
+  d.innerHTML = `
     <div class="msg-avatar">⬡</div>
     <div class="msg-content">
-      <div class="msg-meta">SENTINEL-AI · ANALYZING</div>
+      <div class="msg-meta">SENTINEL-AI · NVIDIA processing…</div>
       <div class="typing-bubble">
         <div class="typing-dot"></div>
         <div class="typing-dot"></div>
         <div class="typing-dot"></div>
       </div>
     </div>`;
-  msgs.appendChild(div);
+  msgs.appendChild(d);
   msgs.scrollTop = msgs.scrollHeight;
   return id;
 }
@@ -521,24 +548,16 @@ function removeTyping(id) {
   if (t) t.remove();
 }
 
-function buildChatTable(headers, rows, suspicious = []) {
-  const ths = headers.map(h => `<th>${h}</th>`).join("");
-  const trs = rows.map((row, i) =>
-    `<tr class="${suspicious[i] ? "suspicious" : ""}">${row.map(cell => `<td>${cell}</td>`).join("")}</tr>`
-  ).join("");
-  return `<table class="chat-table"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // UI UTILITIES
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 
 function setStatus(ok) {
   const badge = el("systemStatus");
   const text  = el("statusText");
-  badge.classList.toggle("error", !ok);
-  text.textContent = ok ? "SYSTEM ONLINE" : "BACKEND OFFLINE";
-  const dot = badge.querySelector(".pulse-dot");
+  if (badge) badge.classList.toggle("error", !ok);
+  if (text)  text.textContent = ok ? "SYSTEM ONLINE" : "BACKEND OFFLINE";
+  const dot = badge?.querySelector(".pulse-dot");
   if (dot) dot.style.background = ok ? "var(--green)" : "var(--red)";
 }
 
@@ -552,56 +571,60 @@ function closeAlert() {
 }
 
 function animCount(id, target) {
-  const elmt = el(id);
+  const e = el(id); if (!e) return;
   let cur = 0;
   const step = Math.max(1, Math.ceil(target / 20));
   const t = setInterval(() => {
     cur = Math.min(cur + step, target);
-    elmt.textContent = cur;
+    e.textContent = cur;
     if (cur >= target) clearInterval(t);
   }, 40);
 }
 
 function animBar(id, pct) {
   const b = el(id);
-  if (b) setTimeout(() => { b.style.width = Math.min(100, pct) + "%"; }, 100);
+  if (b) setTimeout(() => { b.style.width = Math.min(100, Math.max(0, pct)) + "%"; }, 100);
 }
 
 function startClock() {
-  const update = () => {
-    el("headerClock").textContent =
-      new Date().toLocaleTimeString("en-US", { hour12: false });
+  const upd = () => {
+    const c = el("headerClock");
+    if (c) c.textContent = new Date().toLocaleTimeString("en-US", { hour12: false });
   };
-  update();
-  setInterval(update, 1000);
+  upd(); setInterval(upd, 1000);
 }
 
 function fmtTime() {
-  return new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return new Date().toLocaleTimeString("en-US",
+    { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 function el(id) { return document.getElementById(id); }
-function el_lazy(id) { return { get: () => document.getElementById(id) }; }
-function escapeHTML(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MATRIX RAIN
-// ═══════════════════════════════════════════════════════════════════════════════
+function escapeHTML(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MATRIX RAIN BACKGROUND
+// ═════════════════════════════════════════════════════════════════════════════
 
 function initMatrix() {
   const canvas = el("matrixCanvas");
-  const ctx    = canvas.getContext("2d");
-  const resize = () => { canvas.width = innerWidth; canvas.height = innerHeight; };
-  resize();
-  window.addEventListener("resize", resize);
+  if (!canvas) return;
+  const ctx  = canvas.getContext("2d");
+  const rs   = () => { canvas.width = innerWidth; canvas.height = innerHeight; };
+  rs(); window.addEventListener("resize", rs);
 
-  const chars  = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%^&*()";
-  const fs     = 12;
-  let cols = Math.floor(canvas.width / fs);
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%^&*()";
+  const fs    = 12;
+  let cols  = Math.floor(innerWidth / fs);
   let drops = Array(cols).fill(0);
   window.addEventListener("resize", () => {
-    cols = Math.floor(canvas.width / fs);
-    drops = Array(cols).fill(0);
+    cols = Math.floor(innerWidth / fs); drops = Array(cols).fill(0);
   });
 
   setInterval(() => {
@@ -615,4 +638,112 @@ function initMatrix() {
       drops[i]++;
     });
   }, 50);
+}
+
+// ── Inject CSS for ai-warn-box and ai-stats-snap (no extra file needed) ───────
+(function injectStyles() {
+  const s = document.createElement("style");
+  s.textContent = `
+    .ai-warn-box {
+      margin-top: 8px; padding: 6px 10px;
+      background: rgba(255,159,67,0.07);
+      border: 1px solid rgba(255,159,67,0.25);
+      border-left: 3px solid var(--orange);
+      border-radius: 0 6px 6px 0;
+      font-family: var(--mono); font-size: 9px;
+      color: var(--orange); line-height: 1.6;
+    }
+    .ai-stats-snap {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      margin-top: 7px; padding: 5px 9px;
+      background: rgba(0,180,255,0.04);
+      border: 1px solid rgba(0,180,255,0.12);
+      border-radius: 6px;
+      font-family: var(--mono); font-size: 9px; color: var(--t2);
+    }
+    .msg-source {
+      font-family: var(--mono); font-size: 8px;
+      color: var(--purple); margin-top: 3px; letter-spacing: .5px;
+    }
+  `;
+  document.head.appendChild(s);
+})();
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MITRE MAPPINGS (/api/mitre-mappings)
+// ═════════════════════════════════════════════════════════════════════════════
+
+async function loadMITREMappings() {
+  const data = await fetchJSON("/api/mitre-mappings");
+  if (!data) return;
+
+  renderMITRESummary(data);
+}
+
+function renderMITRESummary(data) {
+  const content = el("mitreContent");
+  
+  const coverage = data.framework_coverage || {};
+  const attackCount = coverage.attack ? coverage.attack.length : 0;
+  const carCount = coverage.car ? coverage.car.length : 0;
+  const d3fendCount = coverage.d3fend ? coverage.d3fend.length : 0;
+  const engageCount = coverage.engage ? coverage.engage.length : 0;
+  
+  const attackTechs = Object.values(data.attack_techniques || {}).slice(0, 3);
+  const carAnalytics = Object.values(data.car_analytics || {}).slice(0, 2);
+  
+  content.innerHTML = `
+    <div class="mitre-stats">
+      <div class="mitre-stat">
+        <span class="mitre-stat-label">ATT&CK</span>
+        <span class="mitre-stat-val">${attackCount}</span>
+      </div>
+      <div class="mitre-stat">
+        <span class="mitre-stat-label">CAR</span>
+        <span class="mitre-stat-val">${carCount}</span>
+      </div>
+      <div class="mitre-stat">
+        <span class="mitre-stat-label">D3FEND</span>
+        <span class="mitre-stat-val">${d3fendCount}</span>
+      </div>
+      <div class="mitre-stat">
+        <span class="mitre-stat-label">ENGAGE</span>
+        <span class="mitre-stat-val">${engageCount}</span>
+      </div>
+    </div>
+    
+    ${attackTechs.length > 0 ? `
+      <div class="mitre-section">
+        <div class="mitre-section-title">🎯 Top ATT&CK Techniques</div>
+        <div class="mitre-items">
+          ${attackTechs.map(tech => `
+            <div class="mitre-item attack">
+              <span class="mitre-id">${tech.technique_id}</span>
+              <span class="mitre-name">${tech.technique_name}</span>
+              <span class="mitre-tactic">${tech.tactic}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+    
+    ${carAnalytics.length > 0 ? `
+      <div class="mitre-section">
+        <div class="mitre-section-title">🔬 CAR Analytics</div>
+        <div class="mitre-items">
+          ${carAnalytics.map(analytic => `
+            <div class="mitre-item car">
+              <span class="mitre-id">${analytic.analytics_id}</span>
+              <span class="mitre-name">${analytic.analytics_name}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+    
+    <div class="mitre-footer">
+      <span>📊 ${data.mapped_logs}/${data.total_logs} logs mapped</span>
+      <a href="/mitre-mapping" class="mitre-link">View Details →</a>
+    </div>
+  `;
 }
