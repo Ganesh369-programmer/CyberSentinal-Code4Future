@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>CyberSentinel | Secure Authentication</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Google Fonts: Inter + Orbitron -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: radial-gradient(ellipse at 20% 30%, #0a0f1e, #03050b);
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated grid background */
+        .cyber-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 245, 255, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 245, 255, 0.08) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+            animation: gridMove 20s linear infinite;
+        }
+
+        @keyframes gridMove {
+            0% {
+                transform: translate(0, 0);
+            }
+            100% {
+                transform: translate(40px, 40px);
+            }
+        }
+
+        /* Floating particles */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(0, 245, 255, 0.4);
+            border-radius: 50%;
+            box-shadow: 0 0 12px #00f5ff;
+            animation: floatParticle 8s infinite ease-in-out;
+        }
+
+        @keyframes floatParticle {
+            0% {
+                transform: translateY(0px) translateX(0px);
+                opacity: 0;
+            }
+            20% {
+                opacity: 0.8;
+            }
+            80% {
+                opacity: 0.6;
+            }
+            100% {
+                transform: translateY(-100px) translateX(30px);
+                opacity: 0;
+            }
+        }
+
+        /* Main card container */
+        .login-wrapper {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 480px;
+            margin: 1.5rem;
+        }
+
+        .cyber-card {
+            background: rgba(5, 12, 20, 0.75);
+            backdrop-filter: blur(16px);
+            border-radius: 32px;
+            border: 1px solid rgba(0, 245, 255, 0.35);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(0, 245, 255, 0.2);
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .cyber-card:hover {
+            border-color: #00f5ff;
+            box-shadow: 0 0 35px rgba(0, 245, 255, 0.3);
+        }
+
+        .card-header-glow {
+            background: linear-gradient(135deg, rgba(0, 245, 255, 0.15), rgba(0, 0, 0, 0.6));
+            padding: 1.5rem 2rem 1rem;
+            text-align: center;
+            border-bottom: 1px solid rgba(0, 245, 255, 0.3);
+        }
+
+        .logo-icon {
+            font-size: 3.2rem;
+            color: #00f5ff;
+            filter: drop-shadow(0 0 8px #00f5ff);
+            animation: pulseGlow 2s infinite alternate;
+        }
+
+        @keyframes pulseGlow {
+            0% {
+                text-shadow: 0 0 2px #00f5ff;
+                filter: drop-shadow(0 0 4px #00f5ff);
+            }
+            100% {
+                text-shadow: 0 0 12px #00f5ff;
+                filter: drop-shadow(0 0 12px #00f5ff);
+            }
+        }
+
+        .cyber-title {
+            font-family: 'Orbitron', monospace;
+            font-weight: 700;
+            font-size: 1.8rem;
+            letter-spacing: 3px;
+            background: linear-gradient(135deg, #ffffff, #00f5ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-top: 10px;
+        }
+
+        .subtitle {
+            font-size: 0.75rem;
+            letter-spacing: 1.5px;
+            color: #9cd9ff;
+            font-weight: 300;
+            text-transform: uppercase;
+        }
+
+        /* Form styling */
+        .cyber-form {
+            padding: 2rem 2rem 1.8rem;
+        }
+
+        .input-group-cyber {
+            margin-bottom: 1.5rem;
+        }
+
+        .input-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+            color: #b3f0ff;
+            text-transform: uppercase;
+        }
+
+        .input-icon-field {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon-field i {
+            position: absolute;
+            left: 15px;
+            font-size: 1.1rem;
+            color: #00f5ff;
+            z-index: 2;
+            opacity: 0.8;
+        }
+
+        .cyber-input {
+            width: 100%;
+            background: rgba(0, 20, 30, 0.7);
+            border: 1.5px solid rgba(0, 245, 255, 0.5);
+            border-radius: 40px;
+            padding: 12px 20px 12px 45px;
+            font-size: 0.95rem;
+            color: #ffffff;
+            font-weight: 400;
+            transition: all 0.25s ease;
+            font-family: 'Inter', monospace;
+        }
+
+        .cyber-input:focus {
+            outline: none;
+            border-color: #00f5ff;
+            box-shadow: 0 0 15px rgba(0, 245, 255, 0.4);
+            background: rgba(0, 30, 40, 0.8);
+        }
+
+        .cyber-input::placeholder {
+            color: rgba(180, 230, 255, 0.5);
+            font-size: 0.8rem;
+        }
+
+        /* Toggle password eye */
+        .toggle-pwd {
+            position: absolute;
+            right: 15px;
+            cursor: pointer;
+            color: #00f5ff;
+            background: transparent;
+            border: none;
+            font-size: 1rem;
+            z-index: 2;
+        }
+
+        /* Login button */
+        .btn-cyber {
+            background: linear-gradient(95deg, #00a3b3, #00f5ff);
+            border: none;
+            border-radius: 40px;
+            padding: 12px;
+            font-weight: 700;
+            font-family: 'Orbitron', monospace;
+            letter-spacing: 2px;
+            font-size: 1rem;
+            color: #0a0f1c;
+            transition: all 0.25s;
+            box-shadow: 0 5px 15px rgba(0, 245, 255, 0.2);
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+
+        .btn-cyber:hover {
+            transform: scale(1.02);
+            background: linear-gradient(95deg, #00c5d9, #2effff);
+            box-shadow: 0 0 20px #00f5ff;
+            color: #000;
+        }
+
+        /* security badges */
+        .security-badge {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50px;
+            padding: 0.5rem 1rem;
+            margin-top: 1.5rem;
+            border: 1px solid rgba(0, 245, 255, 0.3);
+            font-size: 0.7rem;
+        }
+
+        .badge-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #9cd9ff;
+        }
+
+        .badge-item i {
+            font-size: 0.8rem;
+            color: #00f5ff;
+        }
+
+        /* Footer */
+        .footer-note {
+            text-align: center;
+            padding: 1rem 1rem 1.2rem;
+            font-size: 0.7rem;
+            color: #5f9ea0;
+            border-top: 1px solid rgba(0, 245, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        /* alert animation */
+        .toast-notify {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            z-index: 1050;
+            min-width: 260px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(12px);
+            border-left: 5px solid;
+            border-radius: 12px;
+            padding: 12px 18px;
+            font-family: 'Inter', monospace;
+            transform: translateX(120%);
+            transition: transform 0.3s ease;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+
+        .toast-notify.show-toast {
+            transform: translateX(0);
+        }
+
+        .toast-success {
+            border-left-color: #00ffaa;
+            color: #ccfff0;
+        }
+        .toast-error {
+            border-left-color: #ff3366;
+            color: #ffb3c6;
+        }
+
+        @media (max-width: 480px) {
+            .cyber-title {
+                font-size: 1.4rem;
+            }
+            .cyber-form {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="cyber-grid"></div>
+<div class="particles" id="particlesContainer"></div>
+
+<div class="login-wrapper">
+    <div class="cyber-card">
+        <div class="card-header-glow">
+            <div class="logo-icon">
+                <i class="fas fa-shield-haltered"></i>
+            </div>
+            <div class="cyber-title">CYBER SENTINEL</div>
+            <div class="subtitle">✦ SECURE AUTHENTICATION MODULE ✦</div>
+            <div style="margin-top: 8px; font-size: 12px; color:#5fd9ff;"><i class="fas fa-lock"></i> AI SECURITY v3.5.1</div>
+        </div>
+
+        <div class="cyber-form">
+            <form id="advancedLoginForm">
+                <div class="input-group-cyber">
+                    <label class="input-label"><i class="fas fa-user-astronaut"></i> USERNAME / ID</label>
+                    <div class="input-icon-field">
+                        <i class="fas fa-user"></i>
+                        <input type="text" class="cyber-input" id="username" placeholder="admin / operator" autocomplete="off" required>
+                    </div>
+                </div>
+
+                <div class="input-group-cyber">
+                    <label class="input-label"><i class="fas fa-key"></i> ACCESS KEY</label>
+                    <div class="input-icon-field">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" class="cyber-input" id="password" placeholder="••••••••" autocomplete="off" required>
+                        <button type="button" class="toggle-pwd" id="togglePasswordBtn">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-cyber" id="loginBtn">
+                    <i class="fas fa-fingerprint"></i> AUTHENTICATE
+                </button>
+
+                <div class="security-badge">
+                    <div class="badge-item"><i class="fas fa-shield-alt"></i> AES-256</div>
+                    <div class="badge-item"><i class="fas fa-microchip"></i> TPM 2.0</div>
+                    <div class="badge-item"><i class="fas fa-eye"></i> Zero Trust</div>
+                </div>
+            </form>
+        </div>
+
+        <div class="footer-note">
+            <i class="fas fa-brain"></i> Threat-Adaptive Firewall | Encrypted Session
+        </div>
+    </div>
+</div>
+
+<!-- Custom Toast Notifications -->
+<div id="liveToast" class="toast-notify">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <i id="toastIcon" class="fas fa-check-circle" style="font-size: 1.4rem;"></i>
+        <div style="flex:1">
+            <strong id="toastTitle">System</strong>
+            <div id="toastMessage" style="font-size:0.8rem;">Authenticating...</div>
+        </div>
+        <button style="background: none; border: none; color: #aaa; cursor:pointer;" onclick="closeToast()">✕</button>
+    </div>
+</div>
+
+<script>
+    // -------------------------------
+    // 1) Animated particles creation
+    // -------------------------------
+    function createParticles() {
+        const container = document.getElementById('particlesContainer');
+        const particleCount = 60;
+        for (let i = 0; i < particleCount; i++) {
+            const particle = document.createElement('div');
+            particle.classList.add('particle');
+            const size = Math.random() * 4 + 2;
+            particle.style.width = size + 'px';
+            particle.style.height = size + 'px';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.top = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 8 + 's';
+            particle.style.animationDuration = Math.random() * 6 + 4 + 's';
+            particle.style.opacity = Math.random() * 0.5 + 0.2;
+            container.appendChild(particle);
+        }
+    }
+    createParticles();
+
+    // Toggle password visibility
+    const togglePwdBtn = document.getElementById('togglePasswordBtn');
+    const pwdInput = document.getElementById('password');
+    let eyeIcon = togglePwdBtn.querySelector('i');
+    
+    togglePwdBtn.addEventListener('click', function() {
+        const type = pwdInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        pwdInput.setAttribute('type', type);
+        if (type === 'text') {
+            eyeIcon.classList.remove('fa-eye');
+            eyeIcon.classList.add('fa-eye-slash');
+        } else {
+            eyeIcon.classList.remove('fa-eye-slash');
+            eyeIcon.classList.add('fa-eye');
+        }
+    });
+
+    // Toast control
+    let toastTimeout;
+    const toastEl = document.getElementById('liveToast');
+    
+    function showToast(type, title, message) {
+        if (toastTimeout) clearTimeout(toastTimeout);
+        const toastIcon = document.getElementById('toastIcon');
+        const toastTitle = document.getElementById('toastTitle');
+        const toastMsg = document.getElementById('toastMessage');
+        
+        if (type === 'success') {
+            toastIcon.className = 'fas fa-check-circle';
+            toastIcon.style.color = '#00ffaa';
+            toastTitle.innerText = title || 'ACCESS GRANTED';
+            toastMsg.innerText = message;
+            toastEl.classList.remove('toast-error');
+            toastEl.classList.add('toast-success');
+        } else {
+            toastIcon.className = 'fas fa-skull-crossbones';
+            toastIcon.style.color = '#ff3366';
+            toastTitle.innerText = title || 'ACCESS DENIED';
+            toastMsg.innerText = message;
+            toastEl.classList.remove('toast-success');
+            toastEl.classList.add('toast-error');
+        }
+        
+        toastEl.classList.add('show-toast');
+        toastTimeout = setTimeout(() => {
+            toastEl.classList.remove('show-toast');
+        }, 3200);
+    }
+    
+    window.closeToast = function() {
+        toastEl.classList.remove('show-toast');
+        if (toastTimeout) clearTimeout(toastTimeout);
+    };
+    
+    // Additional loading effect for button
+    const loginBtn = document.getElementById('loginBtn');
+    
+    // Advanced credential simulation with enhanced security aesthetic
+    // Allowed users: admin + 1234, superuser + sentinel99, auditor + cyber2025
+    // Also simulate fake brute force detection message style
+    function authenticateUser(username, password) {
+        const validCreds = [
+            { user: "admin", pass: "1234", role: "Administrator" },
+            { user: "superuser", pass: "sentinel99", role: "SuperUser" },
+            { user: "auditor", pass: "cyber2025", role: "Security Auditor" },
+            { user: "root", pass: "Cyber#2025", role: "Root Access" }
+        ];
+        return validCreds.find(cred => cred.user === username && cred.pass === password);
+    }
+    
+    // simulate logging attempt with glow animation
+    const form = document.getElementById('advancedLoginForm');
+    
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+        
+        // Disable button for a moment to avoid spam (visual feedback)
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> VERIFYING CREDENTIALS...';
+        
+        // Artificial delay for dramatic effect (makes it feel like secure handshake)
+        setTimeout(() => {
+            const userAuth = authenticateUser(username, password);
+            
+            if (userAuth) {
+                // Grant access success
+                showToast('success', `✓ ${userAuth.role}`, `Authentication successful. Redirecting to CyberSentinel Dashboard...`);
+                // Play subtle style: add a glow effect on card
+                const card = document.querySelector('.cyber-card');
+                card.style.boxShadow = '0 0 40px rgba(0, 255, 200, 0.6)';
+                
+                // Store session simulation
+                sessionStorage.setItem('cyberUser', username);
+                sessionStorage.setItem('cyberRole', userAuth.role);
+                
+                // Redirect to dashboard (demo index.html same as original but now we create a dummy dashboard simulation? Actually we redirect to "dashboard.html" but we don't have, but we will create synthetic in-memory redirect? Original used index.html, but to maintain consistency, we'll create a fake redirection with alert and then go to index.html. Since we have no dashboard file, but we will simulate a dashboard redirect after alert.
+                setTimeout(() => {
+                    // If we want to show something nice, we can redirect to the same "index.html" that the user's original code expects, but we can also create a demo alert and location.
+                    // We'll preserve the original behavior: window.location.href = "index.html";
+                    // However ensure that we do not break if index.html missing. But we follow your initial spec.
+                    window.location.href = "index.html";
+                }, 1400);
+            } else {
+                // Failed attempt: advanced visual denial + log simulation
+                showToast('error', '⛔ SECURITY ALERT', `Invalid credentials for user "${username}". Unauthorized access logged.`);
+                // Shake effect on card
+                const card = document.querySelector('.cyber-card');
+                card.style.transform = 'translateX(8px)';
+                setTimeout(() => { card.style.transform = 'translateX(-6px)'; }, 80);
+                setTimeout(() => { card.style.transform = 'translateX(4px)'; }, 160);
+                setTimeout(() => { card.style.transform = 'translateX(0)'; }, 240);
+                
+                // Clear password field for security (good UX)
+                passwordInput.value = '';
+                passwordInput.focus();
+                
+                // Additional threat feedback: change border color temporarily
+                const inputs = document.querySelectorAll('.cyber-input');
+                inputs.forEach(inp => {
+                    inp.style.borderColor = '#ff3366';
+                    inp.style.boxShadow = '0 0 8px rgba(255,51,102,0.5)';
+                    setTimeout(() => {
+                        inp.style.borderColor = 'rgba(0, 245, 255, 0.5)';
+                        inp.style.boxShadow = 'none';
+                    }, 800);
+                });
+            }
+            
+            // Re-enable button
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = '<i class="fas fa-fingerprint"></i> AUTHENTICATE';
+        }, 800); // small delay to add 'processing' feel
+    });
+    
+    // Additional Easter Egg: Console log for security researcher
+    console.log("%c⚠️ CYBERSENTINEL v3.5 | Secure Zone Active ⚠️", "color: #00f5ff; font-size: 14px; font-family: monospace;");
+    console.log("%c> All login attempts are monitored. Unauthorized access prohibited.", "color: #6c8b9e;");
+    
+    // Add dynamic background glitch on mouse move? just for cool factor (minor)
+    document.body.addEventListener('mousemove', (e) => {
+        const x = e.clientX / window.innerWidth;
+        const y = e.clientY / window.innerHeight;
+        const grid = document.querySelector('.cyber-grid');
+        if (grid) {
+            grid.style.backgroundPosition = `${x * 20}px ${y * 20}px`;
+        }
+    });
+    
+    // preload fancy placeholder typing effect
+    const userField = document.getElementById('username');
+    const placeholders = ["admin", "superuser", "auditor", "root"];
+    let phIndex = 0;
+    setInterval(() => {
+        if (document.activeElement !== userField && userField.value === "") {
+            userField.placeholder = placeholders[phIndex % placeholders.length] + " ...";
+            phIndex++;
+        }
+    }, 2000);
+    
+    // detect enter key already handled by form
+    // extra ripple on login button
+    const btn = document.querySelector('.btn-cyber');
+    btn.addEventListener('click', function(e) {
+        // just ripple visual optional
+        let ripple = document.createElement('span');
+        ripple.classList.add('ripple-effect');
+        ripple.style.position = 'absolute';
+        ripple.style.borderRadius = '50%';
+        ripple.style.backgroundColor = 'rgba(255,255,255,0.4)';
+        ripple.style.width = '10px';
+        ripple.style.height = '10px';
+        ripple.style.transform = 'scale(1)';
+        ripple.style.pointerEvents = 'none';
+        const rect = btn.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        ripple.style.left = mouseX + 'px';
+        ripple.style.top = mouseY + 'px';
+        ripple.style.transition = 'all 0.5s ease-out';
+        btn.style.position = 'relative';
+        btn.appendChild(ripple);
+        setTimeout(() => {
+            ripple.style.transform = 'scale(20)';
+            ripple.style.opacity = '0';
+            setTimeout(() => ripple.remove(), 500);
+        }, 10);
+    });
+    
+    // Add style for ripple effect
+    const styleRipple = document.createElement('style');
+    styleRipple.innerHTML = `.btn-cyber { overflow: hidden; position: relative; } .ripple-effect { position: absolute; background: rgba(255,255,255,0.3); border-radius: 50%; transform: scale(0); animation: rippleAnim 0.6s linear; pointer-events: none; } @keyframes rippleAnim { to { transform: scale(15); opacity: 0; } }`;
+    document.head.appendChild(styleRipple);
+</script>
+
+<!-- Bootstrap JS bundle (optional for interactivity, but not required for core) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
