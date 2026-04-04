@@ -121,7 +121,53 @@ async function refreshAlerts() {
     const newest = allAlerts[0];
     document.querySelectorAll(".alert-card")[0]?.classList.add("new-alert");
     showAlert(`New threat: ${newest.type.replace(/_/g," ").toUpperCase()} from ${newest.src_ip}`);
+    
+    // Auto-trigger chatbot explanation for new high-severity threats
+    if (newest.effective_severity === 'CRITICAL' || newest.effective_severity === 'HIGH') {
+      autoExplainThreat(newest);
+    }
   }
+}
+
+async function autoExplainThreat(alert) {
+  // Add bot message explaining the threat
+  const threatType = alert.type.replace(/_/g, ' ').toUpperCase();
+  const ip = alert.src_ip;
+  
+  // Get MITRE info if available
+  const mitreInfo = alert.mitre ? `\n🎯 MITRE ATT&CK: ${alert.mitre.id} — ${alert.mitre.name}` : '';
+  const carInfo = alert.car ? `\n🔬 CAR Analytics: ${alert.car.id} — ${alert.car.name}` : '';
+  
+  const explanationHTML = `
+    <div style="border-left: 3px solid var(--orange); padding-left: 12px; margin: 8px 0;">
+      <strong style="color: var(--red);">⚠️ NEW THREAT DETECTED: ${threatType}</strong><br><br>
+      <strong>Source:</strong> ${ip}<br>
+      <strong>Severity:</strong> <span style="color: var(--${alert.effective_severity === 'CRITICAL' ? 'red' : 'orange'});">${alert.effective_severity}</span><br>
+      <strong>Score:</strong> ${alert.correlation_score || 'N/A'}<br>
+      ${mitreInfo}<br>
+      ${carInfo}<br><br>
+      <strong>🛡️ RECOMMENDED ACTIONS:</strong>
+      <ul style="margin: 8px 0; padding-left: 16px;">
+        <li>🔍 Click "Investigate" to view full attack timeline</li>
+        <li>📁 Click "Create Case" to document this incident</li>
+        <li>🚫 <strong style="color: var(--red);">Block IP ${ip}</strong> to prevent further access</li>
+      </ul>
+    </div>
+  `;
+  
+  appendBotMessage(explanationHTML, "system");
+  
+  // Show additional suggestion after delay
+  setTimeout(() => {
+    const blockSuggestion = `
+      <div style="background: rgba(255,56,96,0.1); border: 1px solid rgba(255,56,96,0.3); border-radius: 4px; padding: 8px; margin-top: 8px;">
+        <strong style="color: var(--orange);">🤖 AI SUGGESTION:</strong><br>
+        This ${threatType} attack pattern shows ${alert.correlation_score > 0.7 ? 'high' : 'moderate'} confidence. 
+        Based on similar incidents, I recommend <button onclick="blockIP('${ip}')" style="background: var(--red); color: #fff; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">🚫 BLOCK ${ip}</button> immediately.
+      </div>
+    `;
+    appendBotMessage(blockSuggestion, "system");
+  }, 2000);
 }
 
 function setAlertFilter(f, btn) {
@@ -161,6 +207,7 @@ function renderAlertFeed() {
         ${cb}
         <div class="alert-actions">
           <button class="action-btn" onclick="event.stopPropagation();investigateIP('${a.src_ip}')">🔍 Investigate</button>
+          <button class="action-btn" onclick="event.stopPropagation();createCaseFromAlert('${a.src_ip}', '${a.type}')">📁 Create Case</button>
           <button class="action-btn" onclick="event.stopPropagation();loadTimeline('${a.src_ip}')">📊 Timeline</button>
           <button class="action-btn danger" onclick="event.stopPropagation();blockIP('${a.src_ip}')">🚫 Block IP</button>
         </div>
@@ -169,20 +216,32 @@ function renderAlertFeed() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// LOG TABLE  (/api/auth/logs)
+// LOG TABLE  (/api/threats — only mapped attacks with MITRE frameworks)
 // ═════════════════════════════════════════════════════════════════════════════
 
 async function loadLogs() {
-  const data = await fetchJSON("/api/auth/logs");
+  const data = await fetchJSON("/api/threats");
   if (!data) return;
 
-  allLogs = data.logs || [];
+  // Transform threats to log format for display
+  allLogs = (data.threats || []).map(t => ({
+    timestamp: t.log_entry?.timestamp || new Date().toISOString(),
+    source: t.log_entry?.source || t.threat_type,
+    user: t.user_account || t.log_entry?.user || "N/A",
+    ip: t.ip_address || t.log_entry?.ip || "?",
+    status: "threat",
+    threat_type: t.threat_type,
+    confidence: t.confidence,
+    severity: t.severity,
+    mitre_attack: t.mitre_attack,
+    mitre_car: t.mitre_car
+  }));
+  
   el("mc-total").textContent = allLogs.length;
   animCount("hs-events", allLogs.length);
 
-  const fails = allLogs.filter(l => l.status === "failure").length;
-  el("mc-fail").textContent = fails;
-  animBar("mc-fail-bar", allLogs.length ? Math.round(fails / allLogs.length * 100) : 0);
+  el("mc-fail").textContent = allLogs.length;
+  animBar("mc-fail-bar", allLogs.length ? 100 : 0);
 
   renderLogTable();
 }
@@ -201,36 +260,37 @@ function filterLogsSearch(val) {
 
 function renderLogTable() {
   const body = el("logTableBody");
-  let data = logFilter === "threats"
-    ? allLogs.filter(l => l.status === "failure" || suspiciousIPs.has(l.ip))
-    : allLogs;
+  let data = allLogs; // All entries are threats now
 
   if (logSearch) {
     data = data.filter(l =>
       (l.user   || "").toLowerCase().includes(logSearch) ||
       (l.ip     || "").includes(logSearch) ||
       (l.timestamp || "").includes(logSearch) ||
-      (l.status || "").includes(logSearch) ||
+      (l.threat_type || "").includes(logSearch) ||
       (l.source || "").toLowerCase().includes(logSearch)
     );
   }
 
   if (!data.length) {
-    body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:18px;font-family:var(--mono);font-size:10px">No logs match</td></tr>`;
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:18px;font-family:var(--mono);font-size:10px">No mapped threats found. System clean.</td></tr>`;
     return;
   }
 
   body.innerHTML = data.map(l => {
     const susp = suspiciousIPs.has(l.ip);
     const time = (l.timestamp || "").split(" ")[1] || l.timestamp || "?";
-    const st   = l.status === "success" ? "success" : l.status === "scan" ? "scan" : "failure";
-    const stL  = l.status === "success" ? "OK" : l.status === "scan" ? "SCAN" : "FAIL";
-    return `<tr class="${susp ? "suspicious" : ""}">
+    
+    // Show threat type with severity color
+    const sevColor = l.severity === 'CRITICAL' ? 'var(--red)' : 
+                     l.severity === 'HIGH' ? 'var(--orange)' : 'var(--yellow)';
+    
+    return `<tr class="${susp ? "suspicious" : ""}" style="border-left: 2px solid ${sevColor}">
       <td class="td-time">${time}</td>
-      <td class="td-src">${l.source || "?"}</td>
+      <td class="td-src" style="color:${sevColor};font-weight:600;">${l.threat_type || l.source || "?"}</td>
       <td class="td-user">${l.user || "N/A"}</td>
       <td class="td-ip">${l.ip || "?"}</td>
-      <td><span class="badge ${st}">${stL}</span></td>
+      <td><span class="badge" style="background:${sevColor};color:#000;font-weight:700;">${l.severity || "THREAT"}</span></td>
     </tr>`;
   }).join("");
 }
@@ -350,7 +410,8 @@ async function investigateIP(ip) {
           <div class="step-cmd">${s.command||""}</div>
         </div></div>`).join("")}
     </div>` : ""}
-    <div style="text-align:center;padding-top:10px">
+    <div style="text-align:center;padding-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button class="action-btn" onclick="explainAlertInModal('${ip}')">🔍 Explain Alert</button>
       <button class="action-btn danger" onclick="blockIP('${ip}');closeModal()">🚫 Block This IP</button>
     </div>`;
 }
@@ -358,6 +419,172 @@ async function investigateIP(ip) {
 function closeModal() {
   el("investigateModal").classList.add("hidden");
   el("modalBackdrop").classList.add("hidden");
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CASE MANAGEMENT
+// ═════════════════════════════════════════════════════════════════════════════
+
+async function createCaseFromAlert(ip, threatType) {
+  // Find the alert
+  const alert = allAlerts.find(a => a.src_ip === ip && a.type === threatType);
+  if (!alert) {
+    showAlert("Alert not found for case creation");
+    return;
+  }
+  
+  const data = await fetchJSON("/api/cases", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ alert: alert, analyst: "SOC Analyst" })
+  });
+  
+  if (data && data.case) {
+    showAlert(`✅ Case ${data.case.case_id} created for ${threatType} from ${ip}`);
+    appendBotMessage(
+      `📁 <strong>Investigation Case Created</strong><br><br>` +
+      `Case ID: <span style="color:var(--blue)">${data.case.case_id}</span><br>` +
+      `Threat: ${threatType.replace(/_/g, " ").toUpperCase()}<br>` +
+      `Target IP: ${ip}<br>` +
+      `Status: ${data.case.status}<br><br>` +
+      `The AI will remember this case context during investigation.`,
+      "system"
+    );
+  } else {
+    showAlert("Failed to create case");
+  }
+}
+
+async function explainAlertInModal(ip) {
+  // Find the alert for this IP
+  const alert = allAlerts.find(a => a.src_ip === ip);
+  if (!alert) {
+    showAlert("No alert found for this IP");
+    return;
+  }
+  
+  // Show loading in modal
+  const loadingId = "explainLoading_" + Date.now();
+  el("modalBody").innerHTML += `<div class="loading-state" id="${loadingId}"><div class="loading-dots"><span></span><span></span><span></span></div><span>Getting explanation...</span></div>`;
+  
+  const data = await fetchJSON("/api/explain/alert", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ alert_id: alert.id || ip, alert_data: alert })
+  });
+  
+  // Remove loading
+  const loading = document.getElementById(loadingId);
+  if (loading) loading.remove();
+  
+  if (!data || data.error) {
+    showAlert("Failed to get explanation: " + (data?.error || "Unknown error"));
+    return;
+  }
+  
+  // Show explanation in modal
+  const explanationHTML = `
+    <div class="modal-section" style="border-left: 3px solid var(--orange); margin-top: 15px;">
+      <div class="modal-section-title">🔍 WHY THIS ALERT WAS TRIGGERED</div>
+      <div class="modal-narrative" style="margin-bottom: 12px;">${data.why_flagged || "No explanation available."}</div>
+      
+      <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 12px;">
+        <div style="background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 4px;">
+          <span style="color: var(--t3); font-size: 10px;">CONFIDENCE</span>
+          <div style="color: var(--green); font-size: 16px; font-weight: 700;">${Math.round((data.confidence_score || 0.8) * 100)}%</div>
+        </div>
+        <div style="background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 4px;">
+          <span style="color: var(--t3); font-size: 10px;">DATA SOURCES</span>
+          <div style="color: var(--blue); font-size: 14px; font-weight: 600;">${(data.data_sources || []).join(", ") || "logs"}</div>
+        </div>
+      </div>
+      
+      ${data.key_indicators && data.key_indicators.length ? `
+      <div style="margin-bottom: 12px;">
+        <div style="color: var(--t3); font-size: 10px; margin-bottom: 6px;">KEY INDICATORS</div>
+        ${data.key_indicators.map(ind => `
+          <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 12px;">
+            <span style="color: var(--orange);">⚠</span>
+            <span style="color: var(--t2);">${ind.type}:</span>
+            <span style="color: var(--t1);">${ind.value}</span>
+            <span style="color: var(--t3);">(${ind.classification})</span>
+          </div>
+        `).join("")}
+      </div>
+      ` : ""}
+      
+      ${data.recommendation ? `
+      <div style="background: rgba(255,56,96,0.1); border: 1px solid rgba(255,56,96,0.3); border-radius: 4px; padding: 12px;">
+        <div style="color: var(--red); font-size: 10px; margin-bottom: 6px;">RECOMMENDED ACTIONS (${data.recommendation.priority || "MEDIUM"})</div>
+        <ul style="margin: 0; padding-left: 16px; color: var(--t2); font-size: 12px;">
+          ${(data.recommendation.actions || []).map(action => `<li style="margin: 4px 0;">${action}</li>`).join("")}
+        </ul>
+      </div>
+      ` : ""}
+    </div>
+  `;
+  
+  // Append to modal
+  el("modalBody").innerHTML += explanationHTML;
+}
+
+async function viewCases() {
+  const data = await fetchJSON("/api/cases");
+  if (!data || !data.cases) {
+    showAlert("Failed to load cases");
+    return;
+  }
+  
+  // Open modal to show cases
+  el("investigateModal").classList.remove("hidden");
+  el("modalBackdrop").classList.remove("hidden");
+  
+  if (data.cases.length === 0) {
+    el("modalBody").innerHTML = `
+      <div class="modal-section">
+        <div class="modal-section-title">📁 INVESTIGATION CASES</div>
+        <div class="empty-state">No cases yet. Create a case from an alert.</div>
+      </div>
+    `;
+    return;
+  }
+  
+  el("modalBody").innerHTML = `
+    <div class="modal-section">
+      <div class="modal-section-title">📁 INVESTIGATION CASES (${data.cases.length})</div>
+      <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;">
+        <div style="background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 4px;">
+          <span style="color: var(--t3); font-size: 10px;">OPEN</span>
+          <div style="color: var(--green); font-size: 16px; font-weight: 700;">${(data.statistics?.by_status?.open || 0)}</div>
+        </div>
+        <div style="background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 4px;">
+          <span style="color: var(--t3); font-size: 10px;">IN PROGRESS</span>
+          <div style="color: var(--orange); font-size: 16px; font-weight: 700;">${(data.statistics?.by_status?.in_progress || 0)}</div>
+        </div>
+        <div style="background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 4px;">
+          <span style="color: var(--t3); font-size: 10px;">RESOLVED</span>
+          <div style="color: var(--blue); font-size: 16px; font-weight: 700;">${(data.statistics?.by_status?.resolved || 0)}</div>
+        </div>
+      </div>
+      
+      <div style="max-height: 400px; overflow-y: auto;">
+        ${data.cases.slice(0, 10).map(c => `
+          <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 12px; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-family: var(--mono); color: var(--blue); font-size: 12px;">${c.case_id}</span>
+              <span style="background: ${c.status === 'open' ? 'var(--green)' : c.status === 'in_progress' ? 'var(--orange)' : 'var(--blue)'}; color: #000; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 700;">${c.status.replace('_', ' ').toUpperCase()}</span>
+            </div>
+            <div style="color: var(--t1); font-size: 13px; margin-bottom: 4px;">
+              ${c.threat_type.replace(/_/g, ' ').toUpperCase()} from ${c.target_ip}
+            </div>
+            <div style="color: var(--t3); font-size: 11px;">
+              Created: ${new Date(c.created_at).toLocaleString()} · Notes: ${c.notes?.length || 0} · AI Findings: ${c.ai_findings?.length || 0}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

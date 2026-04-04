@@ -24,7 +24,7 @@ CROSS_SOURCE_BONUS      = 2      # extra severity score per additional log sourc
 def load_logs(path: str = None) -> list:
     """Load logs from JSON file. Falls back to empty list on error."""
     if path is None:
-        path = os.path.join(os.path.dirname(__file__), "data", "logs.json")
+        path = os.path.join(os.path.dirname(__file__), "real_json", "auth_logs.json")
     try:
         with open(path) as f:
             logs = json.load(f)
@@ -51,7 +51,7 @@ def _detect_brute_force(logs: list) -> list:
     # Group failure events by src IP
     ip_failures = defaultdict(list)
     for log in logs:
-        if log.get("status") in ("failure",) and log.get("source") in ("windows", "ssh"):
+        if log.get("status") in ("failure",) and log.get("source") in ("windows", "ssh", "web_authentication", "brute_force_simulator", "user"):
             ip_failures[log["ip"]].append(log)
 
     for ip, events in ip_failures.items():

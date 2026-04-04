@@ -21,6 +21,8 @@ from Brute_force.brute_force_attack import brute_force_instance
 from llm import llm_bp 
 from log_mitre_mapper import log_mitre_mapper
 from nvdia_ai.ai_chat_interface import ai_chat_bp
+from cases import case_manager, InvestigationCase
+from explainability import explainability_engine
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)   # Allow frontend on different port during dev
@@ -67,7 +69,7 @@ def get_logs():
     return _LOGS
 
 def get_system_logs():
-    """Get system logs for main dashboard (from data/logs.json)"""
+    """Get system logs for main dashboard (from real_json/auth_logs.json)"""
     return load_logs()
 
 def append_auth_log(log_entry):
@@ -223,9 +225,73 @@ def api_logs():
 def api_alerts():
     logs   = get_logs()
     alerts = detect_threats(logs)
+    # Debug: Log alert types
+    alert_types = {}
+    for a in alerts:
+        t = a.get("type", "unknown")
+        alert_types[t] = alert_types.get(t, 0) + 1
+    print(f"[Alerts] Generated {len(alerts)} alerts: {alert_types}")
     return jsonify({
         "count":  len(alerts),
         "alerts": alerts,
+    })
+
+
+# ── GET /api/threats ──────────────────────────────────────────────────────────
+# Returns only logs that have MITRE framework mappings (actual threats)
+@app.route("/api/threats", methods=["GET"])
+def api_threats():
+    """Get only logs that map to MITRE frameworks (confirmed threats)"""
+    logs = get_logs()
+    mapper = log_mitre_mapper
+    
+    # Get all mappings
+    mappings = mapper.analyze_logs_batch(logs)
+    
+    # Filter to only mapped threats (have threat_type)
+    threats = []
+    for mapping in mappings:
+        if mapping['threat_type']:  # Only include if there's a threat
+            threat_entry = {
+                'log_entry': {k: v for k, v in mapping['log_entry'].items() if k != '_dt'},
+                'threat_type': mapping['threat_type'],
+                'confidence': mapping['confidence'],
+                'severity': mapping['severity'],
+                'mitre_attack': mapping.get('mitre_attack', {}),
+                'mitre_car': mapping.get('mitre_car', {}),
+                'ip_address': mapping['ip_address'],
+                'user_account': mapping['user_account']
+            }
+            threats.append(threat_entry)
+    
+    # Sort by confidence (highest first)
+    threats.sort(key=lambda x: x['confidence'], reverse=True)
+    
+    return jsonify({
+        "count": len(threats),
+        "threats": threats
+    })
+
+
+# ── Blocked IPs storage ───────────────────────────────────────────────────────
+_BLOCKED_IPS = set()
+
+@app.route("/api/blocked-ips", methods=["GET"])
+def api_blocked_ips():
+    """Get list of blocked IPs"""
+    return jsonify({
+        "blocked_ips": list(_BLOCKED_IPS),
+        "count": len(_BLOCKED_IPS)
+    })
+
+@app.route("/api/check-ip/<ip>", methods=["GET"])
+def api_check_ip(ip):
+    """Check if an IP is blocked"""
+    is_blocked = ip in _BLOCKED_IPS
+    return jsonify({
+        "ip": ip,
+        "blocked": is_blocked,
+        "message": "Access denied - IP blocked" if is_blocked else "Access allowed"
     })
 
 
@@ -347,24 +413,30 @@ def api_investigate():
 
     return jsonify(report)
 
-
 # ── POST /api/block-ip ────────────────────────────────────────────────────────
 # Simulated IP block — returns the SOAR block action
 @app.route("/api/block-ip", methods=["POST"])
 def api_block_ip():
+    global _BLOCKED_IPS
     body = request.get_json(force=True)
     ip   = body.get("ip", "").strip()
 
     if not ip:
         return jsonify({"error": "ip field is required"}), 400
 
+    # Add to blocked IPs set
+    _BLOCKED_IPS.add(ip)
+    print(f"[BLOCK] IP {ip} added to blocked list. Total blocked: {len(_BLOCKED_IPS)}")
+
     # In production: call firewall API here
     action = {
         "action":    "BLOCK_IP",
         "ip":        ip,
-        "status":    "SIMULATED",
+        "status":    "BLOCKED",
         "command":   f"iptables -I INPUT -s {ip} -j DROP",
-        "message":   f"IP {ip} has been flagged for blocking. (Simulated — no real firewall call made.)",
+        "message":   f"IP {ip} has been blocked. Access to login page is now denied.",
+        "timestamp": datetime.now().isoformat(),
+        "blocked_count": len(_BLOCKED_IPS)
     }
     return jsonify(action)
 
@@ -616,6 +688,49 @@ def get_severity_from_risk(risk_score):
 
 
 # ── MITRE Mapping API Endpoints ───────────────────────────────────────────────────
+
+@app.route("/api/mitre-mappings", methods=["GET"])
+def api_mitre_mappings_simple():
+    """Simple MITRE mappings endpoint for dashboard summary"""
+    try:
+        logs = get_logs()
+        mappings = log_mitre_mapper.analyze_logs_batch(logs)
+        
+        # Get unique techniques by framework
+        attack_techs = {}
+        car_analytics = {}
+        
+        for m in mappings:
+            if m.get('mitre_attack'):
+                tech = m['mitre_attack']
+                attack_techs[tech['technique_id']] = tech
+            if m.get('mitre_car'):
+                car = m['mitre_car']
+                car_analytics[car['analytics_id']] = car
+        
+        return jsonify({
+            'total_logs': len(logs),
+            'mapped_logs': len([m for m in mappings if m.get('threat_type')]),
+            'framework_coverage': {
+                'attack': list(attack_techs.keys()),
+                'car': list(car_analytics.keys()),
+                'd3fend': [],
+                'engage': []
+            },
+            'attack_techniques': attack_techs,
+            'car_analytics': car_analytics
+        })
+    except Exception as e:
+        print(f"[app] ERROR in mitre-mappings: {e}")
+        return jsonify({
+            'total_logs': 0,
+            'mapped_logs': 0,
+            'framework_coverage': {'attack': [], 'car': [], 'd3fend': [], 'engage': []},
+            'attack_techniques': {},
+            'car_analytics': {},
+            'error': str(e)
+        }), 500
+
 
 @app.route("/api/mitre/mappings/all", methods=["GET"])
 def api_mitre_mappings_all():
@@ -894,6 +1009,186 @@ def api_stats():
         },
         "timestamp": datetime.now().isoformat()
     })
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# INVESTIGATION CASE MANAGEMENT API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/cases", methods=["GET"])
+def api_list_cases():
+    """List all investigation cases with optional filtering."""
+    status = request.args.get("status")
+    limit = request.args.get("limit", 50, type=int)
+    cases = case_manager.list_cases(status=status, limit=limit)
+    return jsonify({
+        "count": len(cases),
+        "cases": cases,
+        "statistics": case_manager.get_case_statistics()
+    })
+
+
+@app.route("/api/cases", methods=["POST"])
+def api_create_case():
+    """Create a new investigation case from an alert."""
+    body = request.get_json(force=True)
+    alert = body.get("alert")
+    analyst = body.get("analyst", "analyst")
+    
+    if not alert:
+        return jsonify({"error": "alert field is required"}), 400
+    
+    case = case_manager.create_case(alert, analyst)
+    return jsonify({
+        "message": f"Case {case.case_id} created",
+        "case": case.to_dict()
+    })
+
+
+@app.route("/api/cases/<case_id>", methods=["GET"])
+def api_get_case(case_id):
+    """Get a specific case with full details."""
+    case = case_manager.get_case(case_id)
+    if not case:
+        return jsonify({"error": "Case not found"}), 404
+    return jsonify(case.to_dict())
+
+
+@app.route("/api/cases/<case_id>/notes", methods=["POST"])
+def api_add_case_note(case_id):
+    """Add an analyst note to a case."""
+    case = case_manager.get_case(case_id)
+    if not case:
+        return jsonify({"error": "Case not found"}), 404
+    
+    body = request.get_json(force=True)
+    note = body.get("note")
+    author = body.get("author", "analyst")
+    
+    if not note:
+        return jsonify({"error": "note field is required"}), 400
+    
+    case.add_note(note, author)
+    case_manager.save_case(case_id)
+    return jsonify({"message": "Note added", "case_id": case_id})
+
+
+@app.route("/api/cases/<case_id>/ai-context", methods=["GET"])
+def api_get_case_ai_context(case_id):
+    """Get AI context for a case (for memory/recall)."""
+    case = case_manager.get_case(case_id)
+    if not case:
+        return jsonify({"error": "Case not found"}), 404
+    return jsonify({
+        "case_id": case_id,
+        "context": case.get_ai_context(),
+        "can_resume": True
+    })
+
+
+@app.route("/api/cases/<case_id>/status", methods=["POST"])
+def api_update_case_status(case_id):
+    """Update case status (open, in_progress, resolved, closed)."""
+    case = case_manager.get_case(case_id)
+    if not case:
+        return jsonify({"error": "Case not found"}), 404
+    
+    body = request.get_json(force=True)
+    status = body.get("status")
+    
+    if status not in ["open", "in_progress", "resolved", "closed"]:
+        return jsonify({"error": "Invalid status"}), 400
+    
+    case_manager.update_case_status(case_id, status)
+    return jsonify({"message": f"Case status updated to {status}", "case_id": case_id})
+
+
+@app.route("/api/cases/<case_id>/ai-finding", methods=["POST"])
+def api_add_ai_finding(case_id):
+    """Add an AI-generated finding to a case."""
+    case = case_manager.get_case(case_id)
+    if not case:
+        return jsonify({"error": "Case not found"}), 404
+    
+    body = request.get_json(force=True)
+    finding = body.get("finding")
+    
+    if not finding:
+        return jsonify({"error": "finding field is required"}), 400
+    
+    case.add_ai_finding(finding)
+    case_manager.save_case(case_id)
+    return jsonify({"message": "AI finding added", "case_id": case_id})
+
+
+@app.route("/api/cases/related/<ip>", methods=["GET"])
+def api_find_related_cases(ip):
+    """Find cases related to a specific IP."""
+    cases = case_manager.find_related_cases(ip)
+    return jsonify({
+        "ip": ip,
+        "related_cases": [c.to_dict() for c in cases],
+        "count": len(cases)
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXPLAINABILITY API - Makes AI decisions transparent
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/explain/alert", methods=["POST"])
+def api_explain_alert():
+    """
+    Get detailed explanation for an alert.
+    
+    Request body:
+    - alert_id: Optional alert identifier
+    - alert: Optional full alert object
+    
+    Returns explanation with:
+    - why_flagged: Human-readable reason
+    - evidence_chain: Supporting evidence
+    - confidence_score: 0-1 confidence
+    - data_sources: Which logs contributed
+    - mitre_rationale: Why this MITRE technique
+    - recommendations: Actionable next steps
+    """
+    body = request.get_json(force=True)
+    alert_id = body.get("alert_id")
+    alert_data = body.get("alert")
+    
+    explanation = explainability_engine.explain_alert(
+        alert_id=alert_id,
+        alert_data=alert_data
+    )
+    
+    return jsonify(explanation)
+
+
+@app.route("/api/explain/ai-response", methods=["POST"])
+def api_explain_ai_response():
+    """
+    Explain why the AI gave a particular response.
+    
+    Request body:
+    - query: The user's question
+    - response: The AI's response (optional)
+    
+    Returns:
+    - data_sources_used: Which sources AI accessed
+    - confidence: AI confidence score
+    - explanation: Human-readable reasoning
+    - limitations: Known limitations
+    """
+    body = request.get_json(force=True)
+    query = body.get("query", "").strip()
+    response = body.get("response", "").strip()
+    
+    if not query:
+        return jsonify({"error": "query field is required"}), 400
+    
+    explanation = explainability_engine.explain_ai_response(query, response)
+    return jsonify(explanation)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

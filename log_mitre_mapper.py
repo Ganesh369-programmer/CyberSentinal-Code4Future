@@ -181,26 +181,30 @@ class LogMITREMapper:
 
     def _map_to_attack(self, threat_type: str) -> Dict[str, Any]:
         """Map to MITRE ATT&CK framework"""
-        if threat_type in self.attack_mappings:
-            return self.attack_mappings[threat_type]
+        for mapping in self.attack_mappings:
+            if mapping.get('threat_type') == threat_type:
+                return mapping
         return {}
 
     def _map_to_car(self, threat_type: str) -> Dict[str, Any]:
         """Map to MITRE CAR framework"""
-        if threat_type in self.car_mappings:
-            return self.car_mappings[threat_type]
+        for mapping in self.car_mappings:
+            if mapping.get('threat_type') == threat_type:
+                return mapping
         return {}
 
     def _map_to_d3fend(self, threat_type: str) -> Dict[str, Any]:
         """Map to MITRE D3FEND framework"""
-        if threat_type in self.d3fend_mappings:
-            return self.d3fend_mappings[threat_type]
+        for mapping in self.d3fend_mappings:
+            if mapping.get('threat_type') == threat_type:
+                return mapping
         return {}
 
     def _map_to_engage(self, threat_type: str) -> Dict[str, Any]:
         """Map to MITRE Engage framework"""
-        if threat_type in self.engage_mappings:
-            return self.engage_mappings[threat_type]
+        for mapping in self.engage_mappings:
+            if mapping.get('threat_type') == threat_type:
+                return mapping
         return {}
 
     def _determine_severity(self, threat_type: str, status: str) -> str:
@@ -289,15 +293,19 @@ class LogMITREMapper:
                 if ip:
                     summary['ips_by_technique'][threat_type].add(ip)
                 
-                # Track framework coverage
+                # Track framework coverage by technique ID (not threat_type)
                 if mapping['mitre_attack']:
-                    summary['framework_coverage']['attack'].add(threat_type)
+                    tech_id = mapping['mitre_attack'].get('technique_id', threat_type)
+                    summary['framework_coverage']['attack'].add(tech_id)
                 if mapping['mitre_car']:
-                    summary['framework_coverage']['car'].add(threat_type)
+                    car_id = mapping['mitre_car'].get('analytics_id', threat_type)
+                    summary['framework_coverage']['car'].add(car_id)
                 if mapping['mitre_d3fend']:
-                    summary['framework_coverage']['d3fend'].add(threat_type)
+                    d3_id = mapping['mitre_d3fend'].get('technique_id', threat_type)
+                    summary['framework_coverage']['d3fend'].add(d3_id)
                 if mapping['mitre_engage']:
-                    summary['framework_coverage']['engage'].add(threat_type)
+                    eng_id = mapping['mitre_engage'].get('technique_id', threat_type)
+                    summary['framework_coverage']['engage'].add(eng_id)
         
         # Convert sets to lists for JSON serialization
         summary['ips_by_technique'] = {

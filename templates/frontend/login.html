@@ -553,6 +553,18 @@
         }
     }
 
+    // Check if IP is blocked before login
+    async function checkIPBlocked(ip) {
+        try {
+            const response = await fetch(`/api/check-ip/${ip}`);
+            const data = await response.json();
+            return data.blocked;
+        } catch (error) {
+            console.error('Error checking IP block status:', error);
+            return false;
+        }
+    }
+
     // simulate logging attempt with glow animation
     const form = document.getElementById('advancedLoginForm');
     
@@ -564,6 +576,16 @@
         const username = usernameInput.value.trim();
         const password = passwordInput.value;
         
+        // Check if IP is blocked first
+        const clientIP = await getClientIP();
+        const isBlocked = await checkIPBlocked(clientIP);
+        
+        if (isBlocked) {
+            showToast('error', '🚫 ACCESS DENIED', `Your IP (${clientIP}) has been blocked due to suspicious activity. Contact security administrator.`);
+            await logAuthenticationAttempt(username, false, clientIP, navigator.userAgent, "IP address blocked");
+            return;
+        }
+        
         // Disable button for a moment to avoid spam (visual feedback)
         loginBtn.disabled = true;
         loginBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> VERIFYING CREDENTIALS...';
@@ -571,7 +593,6 @@
         // Artificial delay for dramatic effect (makes it feel like secure handshake)
         setTimeout(async () => {
             const userAuth = authenticateUser(username, password);
-            const clientIP = await getClientIP();
             const userAgent = navigator.userAgent;
             
             if (userAuth) {
