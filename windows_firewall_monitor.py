@@ -9,8 +9,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-# Default Windows Firewall log path
-DEFAULT_LOG_FILE = r"C:\Windows\System32\LogFiles\Firewall\pfirewall.log"
+# Default Windows Firewall log path (using local file for demo)
+DEFAULT_LOG_FILE = os.path.join(os.path.dirname(__file__), "data", "firewall.log")
 
 def parse_log(line):
     """

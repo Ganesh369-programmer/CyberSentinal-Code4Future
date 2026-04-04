@@ -1002,12 +1002,51 @@ def api_stats():
             "total": len(alerts),
             "by_severity": severity_counts
         },
-        "firewall": {
-            "monitoring_active": True,
-            "firewall_entries": firewall_stats.get("total_entries", 0),
-            "blocked": firewall_stats.get("blocked", 0)
-        },
-        "timestamp": datetime.now().isoformat()
+        "firewall": firewall_stats,
+        "critical_count": severity_counts["CRITICAL"],
+        "high_count": severity_counts["HIGH"]
+    })
+
+
+# ── GET /api/logs/severity/<severity> ────────────────────────────────────────
+@app.route("/api/logs/severity/<severity>", methods=["GET"])
+def api_logs_by_severity(severity):
+    """Get logs filtered by severity (critical or high)"""
+    logs = get_logs()
+    alerts = detect_threats(logs)
+    
+    # Filter alerts by severity
+    filtered_alerts = [alert for alert in alerts if alert.get("effective_severity", "").upper() == severity.upper()]
+    
+    # Extract log entries from alerts
+    filtered_logs = []
+    for alert in filtered_alerts:
+        # If alert has log_entry, use it
+        if "log_entry" in alert:
+            filtered_logs.append(alert["log_entry"])
+        # Otherwise, create a log entry from evidence
+        elif "evidence" in alert and alert["evidence"]:
+            # Use the first evidence line as representative log entry
+            evidence_line = alert["evidence"][0]
+            # Parse the evidence line to create a structured log entry
+            parts = evidence_line.split(" | ")
+            if len(parts) >= 4:
+                filtered_logs.append({
+                    "timestamp": parts[0].strip(),
+                    "source": parts[1].strip(),
+                    "user": parts[2].split("=")[1] if "=" in parts[2] else "unknown",
+                    "ip": alert.get("src_ip", "?"),
+                    "status": "failure",
+                    "message": parts[3].strip() if len(parts) > 3 else "",
+                    "threat_type": alert.get("type", "unknown"),
+                    "severity": severity.upper()
+                })
+    
+    return jsonify({
+        "logs": filtered_logs,
+        "alerts": filtered_alerts,
+        "count": len(filtered_logs),
+        "severity": severity
     })
 
 

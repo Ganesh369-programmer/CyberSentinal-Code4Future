@@ -38,11 +38,11 @@
   </div>
   <div class="header-right">
     <div class="header-stats">
-      <div class="hstat critical-stat">
+      <div class="hstat critical-stat" onclick="filterLogsBySeverity('critical')" style="cursor: pointer;">
         <span class="hstat-val" id="hs-critical">—</span>
         <span class="hstat-label">CRITICAL</span>
       </div>
-      <div class="hstat">
+      <div class="hstat" onclick="filterLogsBySeverity('high')" style="cursor: pointer;">
         <span class="hstat-val" id="hs-high">—</span>
         <span class="hstat-label">HIGH</span>
       </div>

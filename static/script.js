@@ -12,6 +12,7 @@ let alertFilter = "all";
 let logFilter   = "all";
 let logSearch   = "";
 let suspiciousIPs = new Set();
+let isSeverityFiltered = false; // Flag to prevent overriding filtered view
 
 // Session ID stored in localStorage so conversation memory persists across
 // page refreshes (same browser tab = same session = same NVIDIA history)
@@ -112,6 +113,19 @@ async function loadAlerts() {
 
   renderAlertFeed();
   populateIPSelect();
+  
+  // Also load stats to update critical/high counts from all sources
+  loadStats();
+}
+
+// Load overall statistics including critical/high counts
+async function loadStats() {
+  const stats = await fetchJSON("/api/stats");
+  if (!stats) return;
+  
+  // Update critical and high counts from comprehensive stats
+  animCount("hs-critical", stats.critical_count || 0);
+  animCount("hs-high",     stats.high_count || 0);
 }
 
 async function refreshAlerts() {
@@ -220,6 +234,9 @@ function renderAlertFeed() {
 // ═════════════════════════════════════════════════════════════════════════════
 
 async function loadLogs() {
+  // Don't override if severity filter is active
+  if (isSeverityFiltered) return;
+  
   const data = await fetchJSON("/api/threats");
   if (!data) return;
 
@@ -248,6 +265,10 @@ async function loadLogs() {
 
 function filterLogs(mode) {
   logFilter = mode;
+  // Reset severity filter when showing all logs
+  if (mode === 'all') {
+    isSeverityFiltered = false;
+  }
   el("toggleAll").classList.toggle("active",    mode === "all");
   el("toggleThreats").classList.toggle("active", mode === "threats");
   renderLogTable();
@@ -256,6 +277,82 @@ function filterLogs(mode) {
 function filterLogsSearch(val) {
   logSearch = val.toLowerCase();
   renderLogTable();
+}
+
+// ── Filter logs by severity (critical/high) ─────────────────────────────────────
+async function filterLogsBySeverity(severity) {
+  // Set flag to prevent loadLogs from overriding
+  isSeverityFiltered = true;
+  
+  // Update button states
+  el("toggleAll").classList.remove("active");
+  el("toggleThreats").classList.remove("active");
+  
+  // Show loading state
+  const body = el("logTableBody");
+  body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:18px;font-family:var(--mono);font-size:10px">
+    <div class="loading-dots"><span></span><span></span><span></span></div>
+    Loading ${severity.toUpperCase()} logs...
+  </td></tr>`;
+
+  try {
+    const data = await fetchJSON(`/api/logs/severity/${severity}`);
+    if (!data || !data.logs) {
+      body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:18px;font-family:var(--mono);font-size:10px">No ${severity} logs found.</td></tr>`;
+      return;
+    }
+
+    // Transform logs for display
+    const filteredLogs = data.logs.map(log => ({
+      timestamp: log.timestamp || new Date().toISOString(),
+      source: log.source || "unknown",
+      user: log.user || "N/A",
+      ip: log.ip || "?",
+      status: log.status || "unknown",
+      threat_type: log.threat_type || severity.toUpperCase(),
+      severity: severity.toUpperCase(),
+      confidence: data.alerts.find(a => a.log_entry === log)?.confidence || 0
+    }));
+
+    // Update the display
+    renderFilteredLogs(filteredLogs, severity);
+    
+    // Show notification
+    appendBotMessage(
+      `🔍 <strong>Filtered to ${severity.toUpperCase()} severity logs</strong><br>
+      Showing ${filteredLogs.length} ${severity} log entries.<br><br>
+      <button onclick="filterLogs('all')" style="background: var(--blue); color: #fff; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">🔄 SHOW ALL LOGS</button>`,
+      "system"
+    );
+    
+  } catch (error) {
+    console.error(`Error loading ${severity} logs:`, error);
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--red);padding:18px;font-family:var(--mono);font-size:10px">Error loading ${severity} logs.</td></tr>`;
+  }
+}
+
+function renderFilteredLogs(logs, severity) {
+  const body = el("logTableBody");
+  
+  if (!logs.length) {
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:18px;font-family:var(--mono);font-size:10px">No ${severity} logs found. System clean.</td></tr>`;
+    return;
+  }
+
+  const sevColor = severity === 'critical' ? 'var(--red)' : 'var(--orange)';
+  
+  body.innerHTML = logs.map(l => {
+    const susp = suspiciousIPs.has(l.ip);
+    const time = (l.timestamp || "").split(" ")[1] || l.timestamp || "?";
+    
+    return `<tr class="${susp ? "suspicious" : ""}" style="border-left: 2px solid ${sevColor}">
+      <td class="td-time">${time}</td>
+      <td class="td-src" style="color:${sevColor};font-weight:600;">${l.threat_type || l.source || "?"}</td>
+      <td class="td-user">${l.user || "N/A"}</td>
+      <td class="td-ip">${l.ip || "?"}</td>
+      <td><span class="badge" style="background:${sevColor};color:#fff;font-weight:700;">${severity.toUpperCase()}</span></td>
+    </tr>`;
+  }).join("");
 }
 
 function renderLogTable() {
