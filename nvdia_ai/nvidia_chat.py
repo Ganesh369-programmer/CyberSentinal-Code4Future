@@ -20,8 +20,8 @@ from datetime import datetime
 from collections import Counter
 
 # ── NVIDIA API Config ─────────────────────────────────────────────────────────
-NVIDIA_API_URL  = "https://integrate.api.nvidia.com/v1/chat/completions"
-NVIDIA_API_KEY  = "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"
+NVIDIA_API_URL  = ""
+NVIDIA_API_KEY  = ""
 NVIDIA_MODEL    = "meta/llama-4-maverick-17b-128e-instruct"
 NVIDIA_TIMEOUT  = 30        # seconds
 MAX_TOKENS      = 600

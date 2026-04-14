@@ -17509,5 +17509,20 @@
     "password_tried": "1234567",
     "attack_id": 7627431015449,
     "id": 1349
+  },
+  {
+    "timestamp": "2026-04-04 06:04:51",
+    "source": "web_authentication",
+    "user": "ganesh",
+    "ip": "43.241.131.38",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+    "status": "failure",
+    "event_id": 4625,
+    "dest_ip": "127.0.0.1",
+    "port": "5000",
+    "message": "Web authentication failed for user ganesh: Invalid credentials",
+    "session_id": null,
+    "login_method": "web_form",
+    "id": 1350
   }
 ]
