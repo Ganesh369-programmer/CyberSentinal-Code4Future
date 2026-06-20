@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Brute Force Simulator - CyberSentinel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+
+<canvas id="matrixCanvas"></canvas>
+<div class="scanlines"></div>
+
+<!-- ═══ HEADER ═══ -->
+<header class="site-header">
+  <div class="header-left">
+    <div class="logo-icon">
+      <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
+        <polygon points="16,2 30,10 30,22 16,30 2,22 2,10" stroke="#00ff88" stroke-width="1.5" fill="none"/>
+        <polygon points="16,8 24,13 24,19 16,24 8,19 8,13" stroke="#00ff88" stroke-width="1" fill="rgba(0,255,136,0.05)"/>
+        <circle cx="16" cy="16" r="3" fill="#00ff88"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <span class="logo-main">Code4<span class="logo-accent">Future</span></span>
+      <span class="logo-sub">BRUTE FORCE SIMULATOR</span>
+    </div>
+  </div>
+  <div class="header-center">
+    <div class="status-badge" id="systemStatus">
+      <span class="pulse-dot"></span>
+      <span id="statusText">READY</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="header-clock" id="headerClock">--:--:--</div>
+  </div>
+  <div class="header-nav">
+    <a href="/" class="nav-link">
+      <i class="fas fa-home"></i> Dashboard
+    </a>
+    <a href="/brute-force" class="nav-link active">
+      <i class="fas fa-shield-alt"></i> Brute Force
+    </a>
+    <a href="/ai-chat" class="nav-link">
+      <i class="fas fa-robot"></i> AI Chat
+    </a>
+  </div>
+</header>
+
+<!-- ═══ MAIN CONTENT ═══ -->
+<main class="main-layout" style="grid-template-columns: 1fr;">
+
+  <!-- ── BRUTE FORCE CONTROL PANEL ── -->
+  <section class="panel" style="height: 100vh;">
+    <div class="panel-header">
+      <span class="panel-title">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2 7h10M7 2v10" stroke="#ff3860" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="7" cy="7" r="6" stroke="#ff3860" stroke-width="1.2"/>
+        </svg>
+        BRUTE FORCE ATTACK SIMULATOR
+      </span>
+    </div>
+
+    <div class="brute-force-container">
+      <!-- Configuration Section -->
+      <div class="config-section">
+        <h3>Attack Configuration</h3>
+        <div class="config-grid">
+          <div class="config-item">
+            <label>Target IP:</label>
+            <input type="text" id="targetIp" placeholder="192.168.1.100" value="127.0.0.1"/>
+          </div>
+          <div class="config-item">
+            <label>Target Username:</label>
+            <input type="text" id="targetUsername" placeholder="admin" value="admin"/>
+          </div>
+          <div class="config-item">
+            <label>Password Method:</label>
+            <select id="passwordMethod">
+              <option value="common">Common Passwords</option>
+              <option value="numeric">Numeric (0000-9999)</option>
+              <option value="alphabet">Alphabet Combinations</option>
+            </select>
+          </div>
+          <div class="config-item">
+            <label>Max Attempts:</label>
+            <input type="number" id="maxAttempts" placeholder="100" value="50" min="1" max="1000"/>
+          </div>
+        </div>
+        
+        <div class="control-buttons">
+          <button class="attack-btn start" onclick="startAttack()">
+            <i class="fas fa-play"></i> Start Attack
+          </button>
+          <button class="attack-btn stop" onclick="stopAttack()" disabled>
+            <i class="fas fa-stop"></i> Stop Attack
+          </button>
+          <button class="attack-btn reset" onclick="resetAttack()">
+            <i class="fas fa-redo"></i> Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- Status Section -->
+      <div class="status-section">
+        <h3>Attack Status</h3>
+        <div class="status-grid">
+          <div class="status-card">
+            <span class="status-label">Status</span>
+            <span class="status-value" id="attackStatus">STOPPED</span>
+          </div>
+          <div class="status-card">
+            <span class="status-label">Attempts</span>
+            <span class="status-value" id="attemptCount">0</span>
+          </div>
+          <div class="status-card">
+            <span class="status-label">Success</span>
+            <span class="status-value success" id="successCount">0</span>
+          </div>
+          <div class="status-card">
+            <span class="status-label">Failed</span>
+            <span class="status-value danger" id="failCount">0</span>
+          </div>
+          <div class="status-card">
+            <span class="status-label">Elapsed Time</span>
+            <span class="status-value" id="elapsedTime">00:00:00</span>
+          </div>
+          <div class="status-card">
+            <span class="status-label">Current Password</span>
+            <span class="status-value" id="currentPassword">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log Section -->
+      <div class="log-section">
+        <h3>Attack Log</h3>
+        <div class="log-container" id="attackLog">
+          <div class="log-entry">System ready. Configure attack parameters and click Start.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="/static/Brute_force/brute_force_dashboard.js"></script>
+<script>
+// Basic fallback functionality if JS file doesn't load
+function startAttack() {
+  addLog('Starting brute force attack...');
+  document.getElementById('attackStatus').textContent = 'RUNNING';
+  document.getElementById('attackStatus').style.color = '#ff9f43';
+}
+
+function stopAttack() {
+  addLog('Attack stopped by user.');
+  document.getElementById('attackStatus').textContent = 'STOPPED';
+  document.getElementById('attackStatus').style.color = '#6a8faa';
+}
+
+function resetAttack() {
+  addLog('Attack reset.');
+  document.getElementById('attackStatus').textContent = 'STOPPED';
+  document.getElementById('attackStatus').style.color = '#6a8faa';
+  document.getElementById('attemptCount').textContent = '0';
+  document.getElementById('successCount').textContent = '0';
+  document.getElementById('failCount').textContent = '0';
+  document.getElementById('elapsedTime').textContent = '00:00:00';
+  document.getElementById('currentPassword').textContent = '-';
+}
+
+function addLog(message) {
+  const logContainer = document.getElementById('attackLog');
+  const timestamp = new Date().toLocaleTimeString();
+  const logEntry = document.createElement('div');
+  logEntry.className = 'log-entry';
+  logEntry.innerHTML = `<span class="log-time">[${timestamp}]</span> ${message}`;
+  logContainer.appendChild(logEntry);
+  logContainer.scrollTop = logContainer.scrollHeight;
+}
+
+// Clock
+function startClock() {
+  const upd = () => {
+    const c = document.getElementById("headerClock");
+    if (c) c.textContent = new Date().toLocaleTimeString("en-US", { hour12: false });
+  };
+  upd(); setInterval(upd, 1000);
+}
+startClock();
+
+// Matrix background
+function initMatrix() {
+  const canvas = document.getElementById("matrixCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const rs = () => { canvas.width = innerWidth; canvas.height = innerHeight; };
+  rs(); window.addEventListener("resize", rs);
+
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%^&*()";
+  const fs = 12;
+  let cols = Math.floor(innerWidth / fs);
+  let drops = Array(cols).fill(0);
+  window.addEventListener("resize", () => {
+    cols = Math.floor(innerWidth / fs); drops = Array(cols).fill(0);
+  });
+
+  setInterval(() => {
+    ctx.fillStyle = "rgba(2,11,20,0.05)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#00ff88";
+    ctx.font = fs + "px Share Tech Mono";
+    drops.forEach((y, i) => {
+      ctx.fillText(chars[Math.floor(Math.random() * chars.length)], i * fs, y * fs);
+      if (y * fs > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    });
+  }, 50);
+}
+initMatrix();
+</script>
+
+<style>
+.brute-force-container {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+.config-section, .status-section, .log-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 20px;
+}
+
+.config-section h3, .status-section h3, .log-section h3 {
+  color: var(--blue);
+  font-family: var(--logo);
+  font-size: 12px;
+  letter-spacing: 2px;
+  margin-bottom: 15px;
+  text-transform: uppercase;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.config-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.config-item label {
+  color: var(--t2);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.config-item input, .config-item select {
+  background: var(--bg-row);
+  border: 1px solid var(--border);
+  color: var(--t1);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  outline: none;
+}
+
+.config-item input:focus, .config-item select:focus {
+  border-color: var(--blue);
+}
+
+.control-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.attack-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--r);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+.attack-btn.start {
+  background: rgba(255, 56, 96, 0.1);
+  color: var(--red);
+  border: 1px solid rgba(255, 56, 96, 0.3);
+}
+
+.attack-btn.start:hover:not(:disabled) {
+  background: rgba(255, 56, 96, 0.2);
+  box-shadow: var(--gred);
+}
+
+.attack-btn.stop {
+  background: rgba(255, 159, 67, 0.1);
+  color: var(--orange);
+  border: 1px solid rgba(255, 159, 67, 0.3);
+}
+
+.attack-btn.stop:hover:not(:disabled) {
+  background: rgba(255, 159, 67, 0.2);
+}
+
+.attack-btn.reset {
+  background: rgba(0, 180, 255, 0.1);
+  color: var(--blue);
+  border: 1px solid rgba(0, 180, 255, 0.3);
+}
+
+.attack-btn.reset:hover {
+  background: rgba(0, 180, 255, 0.2);
+  box-shadow: var(--gblue);
+}
+
+.attack-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+}
+
+.status-card {
+  background: var(--bg-row);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 15px;
+  text-align: center;
+}
+
+.status-label {
+  display: block;
+  color: var(--t2);
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 5px;
+}
+
+.status-value {
+  display: block;
+  color: var(--green);
+  font-family: var(--logo);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.status-value.success {
+  color: var(--green);
+}
+
+.status-value.danger {
+  color: var(--red);
+}
+
+.log-container {
+  background: var(--bg-row);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  height: 200px;
+  overflow-y: auto;
+  padding: 15px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.log-entry {
+  margin-bottom: 5px;
+  line-height: 1.4;
+}
+
+.log-time {
+  color: var(--t2);
+  margin-right: 8px;
+}
+
+.main-layout {
+  height: 100vh;
+  overflow: hidden;
+}
+</style>
+
+</body>
+</html>
