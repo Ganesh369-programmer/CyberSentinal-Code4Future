@@ -6,7 +6,6 @@ Generates realistic authentication log entries for testing
 import json
 import random
 import os
-import time
 from datetime import datetime
 
 # Sample data
